@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Geometry Bash</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="brand">Geometry <span>Bash</span></div>
+
+      <div class="group" id="tools" role="toolbar" aria-label="Tools">
+        <button class="tool active" data-tool="square" title="Square block — you can land on it (1)">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /></svg><span>Square</span>
+        </button>
+        <button class="tool" data-tool="triangle" title="Triangle spike — deadly (2)">
+          <svg viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20" /></svg><span>Triangle</span>
+        </button>
+        <button class="tool" data-tool="circle" title="Circle saw — deadly (3)">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg><span>Circle</span>
+        </button>
+        <button class="tool" data-tool="eraser" title="Eraser (E) — or right-click">
+          <svg viewBox="0 0 24 24"><path d="M4 16 L12 8 L19 15 L14 20 H8 Z" /></svg><span>Erase</span>
+        </button>
+        <button class="tool" data-tool="pan" title="Pan (H) — drag to scroll">
+          <svg viewBox="0 0 24 24"><path d="M12 3 L15 6 H13 V11 H18 V9 L21 12 L18 15 V13 H13 V18 H15 L12 21 L9 18 H11 V13 H6 V15 L3 12 L6 9 V11 H11 V6 H9 Z" /></svg><span>Pan</span>
+        </button>
+      </div>
+
+      <div class="group" aria-label="Shape options">
+        <div class="seg" id="sizes" title="Shape size">
+          <button data-size="1" class="active">1×</button>
+          <button data-size="2">2×</button>
+          <button data-size="3">3×</button>
+        </div>
+        <button id="rotateBtn" title="Rotate triangle (R)">⟳ <span id="rotLabel">Up</span></button>
+      </div>
+
+      <div class="group">
+        <button id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+        <button id="clearBtn" title="Remove all shapes">Clear</button>
+      </div>
+
+      <div class="group">
+        <input id="levelName" type="text" maxlength="40" placeholder="Level name" aria-label="Level name">
+        <button id="saveBtn" title="Save to this browser">Save</button>
+        <select id="levelSelect" aria-label="Saved levels"><option value="">Load…</option></select>
+        <button id="deleteBtn" title="Delete selected saved level">🗑</button>
+      </div>
+
+      <div class="group">
+        <button id="shareBtn" title="Copy a link that contains this level">🔗 Share</button>
+        <button id="exportBtn" title="Download level as a file">Export</button>
+        <button id="importBtn" title="Load level from a file">Import</button>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+      </div>
+
+      <button id="playBtn" class="play" title="Play this level (P / Enter)">▶ Play</button>
+    </header>
+
+    <main id="stage">
+      <canvas id="canvas"></canvas>
+
+      <div id="hud" hidden>
+        <div class="progress"><div id="progressFill"></div></div>
+        <div class="hud-row">
+          <span id="attempt">Attempt 1</span>
+          <span id="percent">0%</span>
+          <button id="stopBtn" title="Back to editor (Esc)">✎ Edit</button>
+        </div>
+      </div>
+
+      <div id="winScreen" class="overlay" hidden>
+        <div class="card">
+          <h1>Level Complete!</h1>
+          <p id="winStats"></p>
+          <div class="row">
+            <button id="replayBtn" class="play">↻ Play again</button>
+            <button id="backBtn">✎ Edit level</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="scrollbar"><input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level"></div>
+      <div id="hint">Click to place · Right-click to erase · Scroll wheel / arrows to move · Space to jump while playing</div>
+      <div id="toast" hidden></div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/shapes.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
