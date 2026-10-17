@@ -1,16 +1,36 @@
 // Shape geometry shared by the editor (placement, erasing) and the game (collisions).
-// A shape: { t: 'square' | 'triangle' | 'circle' | 'boost', x, y, s, r, v }
+// A shape: { t: 'square' | 'triangle' | 'circle' | 'boost' | 'glass' | 'speed' | 'rocket', x, y, s, r, v }
 //   x, y = bottom-left cell, s = size in cells, r = triangle rotation (0 up, 1 right, 2 down, 3 left),
 //   v = texture / variation (index into STYLE_NAMES[t])
 
-const SHAPE_TYPES = ['square', 'triangle', 'circle', 'boost'];   // order matters: share links store the index
+// Order matters: share links store the index, so only ever append.
+const SHAPE_TYPES = ['square', 'triangle', 'circle', 'boost', 'glass', 'speed', 'rocket'];
 const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
-// Index 0 of each list is the classic look. Cloud blocks vanish after you land on them.
-const BLOCK_STYLE_NAMES = ['Night', 'Brick', 'Crate', 'Stone', 'Metal', 'Grass', 'Ice', 'Neon', 'Candy', 'Cloud'];
+// Index 0 of each list is the classic look. Cloud blocks vanish after you land on them; glass ones shatter.
+const BLOCK_STYLE_NAMES = ['Night', 'Brick', 'Crate', 'Stone', 'Metal', 'Grass', 'Ice', 'Neon', 'Candy', 'Cloud', 'Glass'];
 const SPIKE_STYLE_NAMES = ['Night', 'Lava', 'Ice', 'Metal', 'Thorn', 'Gold', 'Neon', 'Candy', 'Crystal'];
 const SAW_STYLE_NAMES = ['Saw', 'Gear', 'Fireball', 'Spike ball', 'Ice saw', 'Neon', 'Peppermint', 'Gold saw'];
-const STYLE_NAMES = { square: BLOCK_STYLE_NAMES, triangle: SPIKE_STYLE_NAMES, circle: SAW_STYLE_NAMES, boost: ['Boost'] };
+// Speed pickups: the multiplier stays until you collect another one.
+const SPEED_NAMES = ['2×', '3×', '½×', '¾×', '1×'];
+const SPEED_VALUES = [2, 3, 0.5, 0.75, 1];
+const STYLE_NAMES = {
+  square: BLOCK_STYLE_NAMES, triangle: SPIKE_STYLE_NAMES, circle: SAW_STYLE_NAMES,
+  boost: ['Boost'], glass: ['Glass wall'], speed: SPEED_NAMES, rocket: ['Rockets'],
+};
 const CLOUD_STYLE = BLOCK_STYLE_NAMES.indexOf('Cloud');
+const GLASS_STYLE = BLOCK_STYLE_NAMES.indexOf('Glass');
+
+// What the editor's Items tool can place (its palette), in order.
+const ITEM_KINDS = [
+  { t: 'boost', v: 0, name: 'Jump boost — launches you ~3 blocks up' },
+  { t: 'glass', v: 0, name: 'Glass wall — shatters when you touch it' },
+  { t: 'speed', v: 0, name: 'Speed 2×' },
+  { t: 'speed', v: 1, name: 'Speed 3×' },
+  { t: 'speed', v: 2, name: 'Slow ½×' },
+  { t: 'speed', v: 3, name: 'Slow ¾×' },
+  { t: 'speed', v: 4, name: 'Normal speed 1×' },
+  { t: 'rocket', v: 0, name: 'Rockets — 3 shots that blow up blocks' },
+];
 
 function shapeBox(o) {
   return { x: o.x, y: o.y, w: o.s, h: o.s };

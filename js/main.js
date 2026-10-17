@@ -1,4 +1,4 @@
-// App wiring: canvas, main loop, toolbar, keyboard, saving and sharing.
+// App wiring: canvas, main loop, toolbar, keyboard, level library, saving and sharing.
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -31,10 +31,28 @@
     toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
   }
 
-  // ---------- Editor state & UI sync ----------
+  // ---------- Level library (autosaved) ----------
+
+  let library = loadLibrary();   // { [id]: level }; Editor.level is one of these objects
+  let saveTimer = null;
+
+  function saveNow() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (!Editor.level) return;
+    Editor.level.updated = Date.now();
+    library[Editor.level.id] = Editor.level;
+    if (!storeLibrary(library, Editor.level.id)) toast('Could not save — browser storage is full or blocked');
+  }
+  // Edits arrive many times per drag; write at most a few times a second.
+  function saveSoon() {
+    if (!saveTimer) saveTimer = setTimeout(saveNow, 300);
+  }
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   Editor.onChange = () => {
-    storageSet(STORAGE_CURRENT, Editor.level);
+    saveSoon();
     syncScroll();
   };
 
@@ -88,13 +106,15 @@
     $('rotateBtn').hidden = tool !== 'triangle';
     const sw = $('swatches');
     sw.innerHTML = '';
-    const names = STYLE_NAMES[tool] || [];
-    if (names.length < 2) return;
-    names.forEach((name, v) => {
+    const kinds = tool === 'item'
+      ? ITEM_KINDS
+      : (STYLE_NAMES[tool] || []).map((name, v) => ({ t: tool, v, name }));
+    if (kinds.length < 2) return;
+    kinds.forEach(({ t, v: kv, name }, v) => {
       const b = document.createElement('button');
       b.title = name;
       b.setAttribute('role', 'radio');
-      b.appendChild(previewTile(tool, v));
+      b.appendChild(previewTile(t, kv));
       b.addEventListener('click', () => setVariant(v));
       sw.appendChild(b);
     });
@@ -114,7 +134,7 @@
   Editor.onTestStart = () => {
     const t = Editor.testStart;
     $('testChip').hidden = !t;
-    if (t) $('testCol').textContent = t.x;
+    if (t) $('testCol').textContent = ` ${t.x}`;
     $('playBtn').title = t ? `Test from column ${t.x} (P / Enter)` : 'Play this level (P / Enter)';
     $('playBtn').querySelector('.lbl-play').textContent = t ? ' Test' : ' Play';
   };
@@ -160,67 +180,165 @@
   });
 
   $('levelName').addEventListener('input', (e) => {
-    Editor.level.name = e.target.value.slice(0, 40);
-    storageSet(STORAGE_CURRENT, Editor.level);
+    Editor.level.name = e.target.value.slice(0, 40) || 'My Level';
+    saveSoon();
   });
 
-  function loadIntoEditor(level, message) {
+  // Open a level from the library in the editor.
+  function openLevel(level, message) {
+    if (Editor.level && Editor.level !== level) saveNow();
+    library[level.id] = level;
+    Editor.view = Editor.view || makeView(W, H, 0, 0, CONFIG.EDIT_MIN_COLS);
+    Editor.level = level;
     Editor.camX = Editor.homeX();
     Editor.setLevel(level);
     $('levelName').value = level.name;
     $('doubleJumpToggle').checked = level.doubleJump;
+    $('levelCount').textContent = Object.keys(library).length;
     closeMenu();
+    saveNow();
     if (message) toast(message);
+  }
+
+  // Add a level that came from outside (link / file); reuse an identical one if it's already there.
+  function addExternalLevel(level, message) {
+    const same = Object.values(library).find(l => l.name === level.name && levelKey(l) === levelKey(level));
+    if (same) return openLevel(same, message);
+    level.id = newLevelId();
+    openLevel(level, message);
   }
 
   $('doubleJumpToggle').addEventListener('change', (e) => {
     Editor.level.doubleJump = e.target.checked;
-    storageSet(STORAGE_CURRENT, Editor.level);
+    saveSoon();
     toast(e.target.checked ? 'Double jump on for this level' : 'Double jump off');
   });
 
-  // ---------- Saved levels ----------
+  // ---------- My levels screen ----------
 
-  function refreshLevelList() {
-    const sel = $('levelSelect');
-    const names = Object.keys(loadSavedLevels()).sort((a, b) => a.localeCompare(b));
-    sel.innerHTML = '<option value="">Load…</option>';
-    for (const n of names) {
-      const opt = document.createElement('option');
-      opt.value = n;
-      opt.textContent = n;
-      sel.appendChild(opt);
+  const THUMB_COLORS = ['#ffffff', '#c0583b', '#b8823f', '#8a9099', '#c3ccd6', '#4caf50', '#9fe3ff', '#ff5cf4', '#ff8fc4', '#ffffff', '#bfe8ff'];
+
+  function drawThumb(canvas, level) {
+    canvas.width = 220;
+    canvas.height = 72;
+    const c = canvas.getContext('2d');
+    const from = CONFIG.START_X, end = levelEnd(level);
+    const kx = canvas.width / (end - from + 2), ky = (canvas.height - 8) / (CONFIG.MAX_Y + 1);
+    const X = (x) => (x - from + 1) * kx, Y = (y) => canvas.height - 8 - y * ky;
+    c.fillStyle = '#0a0f2e';
+    c.fillRect(0, 0, canvas.width, canvas.height);
+    c.fillStyle = '#2c3a85';
+    c.fillRect(0, canvas.height - 8, canvas.width, 8);
+    for (const o of level.objects) {
+      c.fillStyle = o.t === 'square' ? THUMB_COLORS[o.v] : (o.t === 'triangle' || o.t === 'circle') ? '#ff4d6d' : '#ffd23f';
+      c.fillRect(X(o.x), Y(o.y + o.s), Math.max(1.5, o.s * kx), Math.max(1.5, o.s * ky));
+    }
+    c.fillStyle = '#3ddc84';
+    c.fillRect(X(level.start.x), Y(level.start.y + 1), Math.max(3, kx), ky);
+  }
+
+  function timeAgo(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    return `${Math.floor(s / 86400)} d ago`;
+  }
+
+  function renderLevelList() {
+    const list = $('levelList');
+    list.innerHTML = '';
+    const levels = Object.values(library).sort((a, b) => b.updated - a.updated);
+    for (const level of levels) {
+      const li = document.createElement('li');
+      li.className = 'level-item' + (level === Editor.level ? ' current' : '');
+      const thumb = document.createElement('canvas');
+      drawThumb(thumb, level);
+      const info = document.createElement('div');
+      info.className = 'info';
+      const name = document.createElement('b');
+      name.textContent = level.name;
+      const meta = document.createElement('small');
+      const best = loadBest(levelKey(level));
+      meta.textContent = `${level.objects.length} shapes · best ${best}% · ${timeAgo(level.updated)}`;
+      info.append(name, meta);
+      const btn = (label, title, fn) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.title = title;
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+        return b;
+      };
+      li.append(thumb, info,
+        btn('✎', 'Rename', () => renameLevel(level)),
+        btn('⧉', 'Duplicate', () => duplicateLevel(level)),
+        btn('🗑', 'Delete', () => deleteLevel(level)));
+      li.addEventListener('click', () => {
+        closeLevels();
+        if (level !== Editor.level) openLevel(level, `Opened “${level.name}”`);
+      });
+      list.appendChild(li);
     }
   }
 
-  $('saveBtn').addEventListener('click', () => {
-    const name = ($('levelName').value.trim() || 'My Level').slice(0, 40);
-    Editor.level.name = name;
-    $('levelName').value = name;
-    if (saveLevelByName(Editor.level)) {
-      refreshLevelList();
-      $('levelSelect').value = name;
-      toast(`Saved “${name}”`);
+  function openLevels() {
+    saveNow();
+    closeMenu();
+    renderLevelList();
+    $('levelsScreen').hidden = false;
+  }
+  function closeLevels() {
+    $('levelsScreen').hidden = true;
+  }
+
+  function createLevel() {
+    const name = prompt('Name your new level:', `Level ${Object.keys(library).length + 1}`);
+    if (name === null) return;
+    closeLevels();
+    openLevel(newLevel(name.trim().slice(0, 40) || 'My Level'), 'New level — start building!');
+  }
+
+  function renameLevel(level) {
+    const name = prompt('Rename level:', level.name);
+    if (name === null || !name.trim()) return;
+    level.name = name.trim().slice(0, 40);
+    if (level === Editor.level) $('levelName').value = level.name;
+    library[level.id] = level;
+    storeLibrary(library, Editor.level.id);
+    renderLevelList();
+  }
+
+  function duplicateLevel(level) {
+    saveNow();
+    const copy = sanitizeLevel(JSON.parse(JSON.stringify(level)));
+    copy.id = newLevelId();
+    copy.name = `${level.name} copy`.slice(0, 40);
+    copy.updated = Date.now();
+    library[copy.id] = copy;
+    storeLibrary(library, Editor.level.id);
+    $('levelCount').textContent = Object.keys(library).length;
+    renderLevelList();
+  }
+
+  function deleteLevel(level) {
+    if (!confirm(`Delete “${level.name}”? This can't be undone.`)) return;
+    delete library[level.id];
+    if (level === Editor.level) {
+      const next = Object.values(library).sort((a, b) => b.updated - a.updated)[0];
+      Editor.level = null;
+      openLevel(next || newLevel('My Level'));
     } else {
-      toast('Could not save — browser storage is unavailable');
+      storeLibrary(library, Editor.level.id);
     }
-  });
+    $('levelCount').textContent = Object.keys(library).length;
+    renderLevelList();
+  }
 
-  $('levelSelect').addEventListener('change', (e) => {
-    const name = e.target.value;
-    if (!name) return;
-    const level = loadSavedLevels()[name];
-    if (level) loadIntoEditor(sanitizeLevel(level), `Loaded “${name}”`);
-  });
-
-  $('deleteBtn').addEventListener('click', () => {
-    const name = $('levelSelect').value;
-    if (!name) return toast('Pick a saved level to delete first');
-    if (!confirm(`Delete saved level “${name}”?`)) return;
-    deleteSavedLevel(name);
-    refreshLevelList();
-    toast(`Deleted “${name}”`);
-  });
+  $('levelsBtn').addEventListener('click', openLevels);
+  $('newLevelMenuBtn').addEventListener('click', createLevel);
+  $('newLevelBtn').addEventListener('click', createLevel);
+  $('closeLevelsBtn').addEventListener('click', closeLevels);
+  $('levelsScreen').addEventListener('pointerdown', (e) => { if (e.target === $('levelsScreen')) closeLevels(); });
 
   // ---------- Share / export / import ----------
 
@@ -250,9 +368,7 @@
     e.target.value = '';
     if (!file) return;
     try {
-      const prev = Editor.snapshot();
-      loadIntoEditor(levelFromJSON(await file.text()), `Imported “${file.name}”`);
-      Editor.pushUndo(prev);
+      addExternalLevel(levelFromJSON(await file.text()), `Imported “${file.name}” into My levels`);
     } catch {
       toast('That file is not a valid level');
     }
@@ -279,6 +395,7 @@
     $('hud').hidden = true;
     hideResult();
     canvas.classList.remove('playing');
+    $('rocketBtn').hidden = true;
     Game.jumpHeld = false;
     syncScroll();
   }
@@ -304,6 +421,7 @@
     $('resultTime').textContent = `${stats.time.toFixed(1)}s`;
     $('resultAir').textContent = stats.airJumps;
     $('resultAirRow').hidden = !Game.level.doubleJump;
+    document.querySelector('#resultScreen .stats').classList.toggle('three', !Game.level.doubleJump);
     $('newBest').hidden = !stats.newBest;
     $('retryBtn').hidden = kind === 'win';
     $('newGameBtn').classList.toggle('play', kind === 'win');
@@ -311,11 +429,13 @@
       ? 'Space: new game · Esc: edit'
       : 'Space: retry · N: new game · Esc: edit';
     $('resultScreen').hidden = false;
+    document.body.classList.add('result-open');
   }
 
   function hideResult() {
     resultKind = null;
     $('resultScreen').hidden = true;
+    document.body.classList.remove('result-open');
   }
 
   function retry() {
@@ -326,15 +446,19 @@
 
   function newGame() {
     hideResult();
-    Game.start(Game.level);
+    Game.start(Game.level, Game.startPos);
   }
 
   Game.onResult = showResult;
 
-  Game.onHud = (attempts, progress, airJumps) => {
+  Game.onHud = (attempts, progress, p) => {
     $('attempt').textContent = Game.startPos ? `Test · Attempt ${attempts}` : `Attempt ${attempts}`;
     $('airJumpsHud').hidden = !Game.level.doubleJump;
-    $('airJumps').textContent = '●'.repeat(airJumps) + '○'.repeat(CONFIG.AIR_JUMPS - airJumps);
+    $('airJumps').textContent = '●'.repeat(p.airJumps) + '○'.repeat(CONFIG.AIR_JUMPS - p.airJumps);
+    $('speedHud').hidden = p.speedMul === 1;
+    $('speedHud').textContent = `${p.speedMul > 1 ? '⏩' : '🐢'} ${SPEED_NAMES[SPEED_VALUES.indexOf(p.speedMul)] || p.speedMul + '×'}`;
+    $('rocketBtn').hidden = p.rockets <= 0 || p.dead || p.won;
+    $('rocketCount').textContent = p.rockets;
     const pct = Math.floor(progress * 100);
     $('percent').textContent = `${pct}%`;
     $('progressFill').style.width = `${pct}%`;
@@ -345,6 +469,11 @@
   $('retryBtn').addEventListener('click', retry);
   $('newGameBtn').addEventListener('click', newGame);
   $('editBtn').addEventListener('click', stopPlay);
+  $('rocketBtn').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    Game.fire();
+  });
 
   // ---------- Pointer input ----------
 
@@ -437,9 +566,15 @@
         e.preventDefault();
         Game.jumpHeld = true;
         if (!e.repeat) Game.jumpPressed = true;
+      } else if (e.code === 'KeyX' && !e.repeat) {
+        Game.fire();
       } else if (e.code === 'Escape') {
         stopPlay();
       }
+      return;
+    }
+    if (e.code === 'Escape' && !$('levelsScreen').hidden) {
+      closeLevels();
       return;
     }
 
@@ -454,7 +589,7 @@
       case 'Digit1': setTool('square'); break;
       case 'Digit2': setTool('triangle'); break;
       case 'Digit3': setTool('circle'); break;
-      case 'Digit4': setTool('boost'); break;
+      case 'Digit4': setTool('item'); break;
       case 'KeyF': setTool('flag'); break;
       case 'KeyE': setTool('eraser'); break;
       case 'KeyH': setTool('pan'); break;
@@ -477,39 +612,33 @@
 
   window.addEventListener('blur', () => { Game.jumpHeld = false; });
 
-  // ---------- Initial level: link > autosave > demo ----------
+  // ---------- Initial level: shared link > last level you worked on > newest > demo ----------
 
-  function initialLevel() {
+  function openLinkLevel() {
     const m = location.hash.match(/^#L=([\w-]+)/);
-    if (m) {
-      try {
-        return { level: decodeLevel(m[1]), msg: 'Level loaded from link — press ▶ Play!' };
-      } catch {
-        toast('That level link looks broken');
-      }
+    if (!m) return false;
+    try {
+      addExternalLevel(decodeLevel(m[1]), 'Level from link added to My levels — press ▶ Play!');
+      return true;
+    } catch {
+      toast('That level link looks broken');
+      return false;
     }
-    const saved = storageGet(STORAGE_CURRENT, null);
-    if (saved) return { level: sanitizeLevel(saved) };
-    return { level: demoLevel(), msg: 'Build your level, then press ▶ Play' };
   }
 
   window.addEventListener('hashchange', () => {
-    const m = location.hash.match(/^#L=([\w-]+)/);
-    if (!m) return;
-    try {
-      const prev = Editor.snapshot();
-      stopPlay();
-      loadIntoEditor(decodeLevel(m[1]), 'Level loaded from link');
-      Editor.pushUndo(prev);
-    } catch {
-      toast('That level link looks broken');
-    }
+    if (mode === 'play') stopPlay();
+    openLinkLevel();
   });
 
   Editor.view = makeView(W, H, 0, 0, CONFIG.EDIT_MIN_COLS);   // so homeX() knows the screen size
-  const init = initialLevel();
-  loadIntoEditor(init.level, init.msg);
-  refreshLevelList();
+  Editor.level = null;
+  if (!openLinkLevel()) {
+    const levels = Object.values(library).sort((a, b) => b.updated - a.updated);
+    const current = library[storageGet(STORAGE_CURRENT_ID, null)] || levels[0];
+    if (current) openLevel(current);
+    else openLevel(demoLevel(), 'Build your level, then press ▶ Play');
+  }
 
   // ---------- Main loop ----------
 

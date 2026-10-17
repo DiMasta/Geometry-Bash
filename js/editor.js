@@ -1,25 +1,26 @@
-// Level editor: place / erase shapes on a grid, scroll, undo, pick a test start.
+// Level editor: place / erase shapes on a grid, scroll, undo, move the start, pick a test start.
 
-const SHAPE_TOOLS = ['square', 'triangle', 'circle', 'boost'];
+const SHAPE_TOOLS = ['square', 'triangle', 'circle', 'item'];
 
 const Editor = {
   level: newLevel(),
-  tool: 'square',     // square | triangle | circle | boost | eraser | pan | flag
+  tool: 'square',     // square | triangle | circle | item | eraser | pan | flag
   size: 1,
   rot: 0,
-  variants: { square: 0, triangle: 0, circle: 0, boost: 0 },   // chosen texture per shape
+  variants: { square: 0, triangle: 0, circle: 0, item: 0 },   // chosen texture per shape; item = ITEM_KINDS index
   testStart: null,    // { x, y }: Play starts here instead of the level start (editor only)
   onTestStart: () => {},
   camX: CONFIG.START_X - 1,
   view: null,
   hover: null,        // { x, y } world position of the pointer
-  stroke: null,       // { mode: 'place' | 'erase' | 'pan', before, lastKey, startX, startCam }
+  stroke: null,       // { mode: 'place' | 'erase' | 'pan' | 'start', before, changed, startX, startCam }
   undoStack: [],
   onChange: () => {},
 
   setLevel(level, keepUndo = false) {
     this.level = level;
     if (!keepUndo) this.undoStack = [];
+    if (!keepUndo && this.testStart) this.clearTestStart();
     this.clampCamera();
     this.onChange();
   },
@@ -33,9 +34,12 @@ const Editor = {
     this.camX = Math.min(this.maxCamX(), Math.max(CONFIG.START_X - 1, this.camX));
   },
 
-  // Where the camera starts: show the spawn on wide screens, column 0 on phones.
+  // Where the camera starts: show the spawn on wide screens, column 0 on phones
+  // (or the moved start, if the level has one).
   homeX() {
     const viewCells = this.view ? this.view.W / this.view.scale : 20;
+    const st = this.level.start;
+    if (st && st.x !== CONFIG.START_X) return Math.max(CONFIG.START_X - 1, st.x - 2);
     return viewCells < 14 ? -1 : CONFIG.START_X - 1;
   },
 
@@ -47,7 +51,13 @@ const Editor = {
   // ---------- Editing ----------
 
   snapshot() {
-    return JSON.stringify(this.level.objects);
+    return JSON.stringify({ o: this.level.objects, s: this.level.start });
+  },
+
+  restore(snap) {
+    const d = JSON.parse(snap);
+    this.level.objects = d.o;
+    this.level.start = d.s;
   },
 
   pushUndo(before) {
@@ -58,7 +68,7 @@ const Editor = {
   undo() {
     const prev = this.undoStack.pop();
     if (prev == null) return false;
-    this.level.objects = JSON.parse(prev);
+    this.restore(prev);
     this.onChange();
     return true;
   },
@@ -67,6 +77,42 @@ const Editor = {
     if (!this.level.objects.length) return;
     this.pushUndo(this.snapshot());
     this.level.objects = [];
+    this.onChange();
+  },
+
+  // The shape the current tool would place at cell c.
+  shapeAt(c) {
+    if (this.tool === 'item') {
+      const kind = ITEM_KINDS[this.variants.item] || ITEM_KINDS[0];
+      return { t: kind.t, x: c.x, y: c.y, s: c.s, r: 0, v: kind.v };
+    }
+    return {
+      t: this.tool, x: c.x, y: c.y, s: c.s,
+      r: this.tool === 'triangle' ? this.rot : 0,
+      v: this.variants[this.tool] || 0,
+    };
+  },
+
+  // First free cell at or above (x, y): starts can't be inside a block.
+  freeCellAbove(x, y) {
+    const blocked = (yy) => this.level.objects.some(o => o.t === 'square' && pointInBox(x + 0.5, yy + 0.5, shapeBox(o)));
+    while (y < CONFIG.MAX_Y && blocked(y)) y++;
+    return y;
+  },
+
+  onStartCube(wx, wy) {
+    const st = this.level.start;
+    return st && pointInBox(wx, wy, { x: st.x, y: st.y, w: 1, h: 1 });
+  },
+
+  // Drag the START cube: the level's spawn point (saved with the level).
+  moveStartTo(wx, wy) {
+    const x = Math.max(CONFIG.START_X, Math.floor(wx));
+    const y = this.freeCellAbove(x, Math.max(0, Math.min(CONFIG.MAX_Y, Math.floor(wy))));
+    const st = this.level.start;
+    if (st.x === x && st.y === y) return;
+    this.level.start = { x, y };
+    this.stroke.changed = true;
     this.onChange();
   },
 
@@ -82,11 +128,7 @@ const Editor = {
   placeAt(wx, wy) {
     const c = this.cellFor(wx, wy);
     if (!c.valid) return false;
-    const obj = {
-      t: this.tool, x: c.x, y: c.y, s: c.s,
-      r: this.tool === 'triangle' ? this.rot : 0,
-      v: this.variants[this.tool] || 0,
-    };
+    const obj = this.shapeAt(c);
     const box = shapeBox(obj);
     const same = this.level.objects.find(o =>
       o.t === obj.t && o.x === obj.x && o.y === obj.y && o.s === obj.s && o.r === obj.r && o.v === obj.v);
@@ -101,9 +143,7 @@ const Editor = {
   setTestStart(wx, wy) {
     const c = this.cellFor(wx, wy);
     if (!c.valid) return;
-    let y = c.y;
-    const blocked = (yy) => this.level.objects.some(o => o.t === 'square' && pointInBox(c.x + 0.5, yy + 0.5, shapeBox(o)));
-    while (y < CONFIG.MAX_Y && blocked(y)) y++;
+    const y = this.freeCellAbove(c.x, c.y);
     const same = this.testStart && this.testStart.x === c.x && this.testStart.y === y;
     this.testStart = same ? null : { x: c.x, y };
     this.onTestStart();
@@ -129,6 +169,10 @@ const Editor = {
 
   pointerDown(px, py, button) {
     const w = screenToWorld(this.view, px, py);
+    if (button === 0 && this.tool !== 'pan' && this.tool !== 'eraser' && this.onStartCube(w.x, w.y)) {
+      this.stroke = { mode: 'start', before: this.snapshot(), changed: false };
+      return;
+    }
     if (this.tool === 'flag' && button === 0) {
       this.setTestStart(w.x, w.y);
       return;
@@ -144,7 +188,7 @@ const Editor = {
   // Second finger down: undo what the first finger painted and pan instead.
   beginTwoFingerPan(px) {
     if (this.stroke?.changed) {
-      this.level.objects = JSON.parse(this.stroke.before);
+      this.restore(this.stroke.before);
       this.onChange();
     }
     this.stroke = { mode: 'pan', before: this.snapshot(), changed: false, startX: px, startCam: this.camX };
@@ -158,6 +202,8 @@ const Editor = {
     if (this.stroke.mode === 'pan') {
       this.camX = this.stroke.startCam - (px - this.stroke.startX) / this.view.scale;
       this.clampCamera();
+    } else if (this.stroke.mode === 'start') {
+      this.moveStartTo(w.x, w.y);
     } else {
       this.applyStroke(w);
     }
@@ -219,9 +265,10 @@ const Editor = {
     // Start area
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(sx(v, CONFIG.START_X - 1), 0, sx(v, 0) - sx(v, CONFIG.START_X - 1), groundY);
-    drawPlayer(ctx, v, CONFIG.START_X, 0, 0);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('START', sx(v, CONFIG.START_X + 0.5), sy(v, 1.5));
+    const st = this.level.start;
+    drawPlayer(ctx, v, st.x, st.y, 0);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText('START ⇔', sx(v, st.x + 0.5), sy(v, st.y + 1.3));
 
     drawFinishLine(ctx, v, levelEnd(this.level));
 
@@ -252,6 +299,13 @@ const Editor = {
   drawHover(ctx, v, time) {
     if (!this.hover || this.tool === 'pan' || this.stroke?.mode === 'pan') return;
     const { x: wx, y: wy } = this.hover;
+    if (this.stroke?.mode === 'start' || (this.tool !== 'eraser' && !this.stroke && this.onStartCube(wx, wy))) {
+      const st = this.level.start;
+      ctx.strokeStyle = '#3ddc84';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(sx(v, st.x) - 3, sy(v, st.y + 1) - 3, v.scale + 6, v.scale + 6);
+      return;
+    }
     if (this.tool === 'eraser' || this.stroke?.mode === 'erase') {
       const target = this.level.objects.find(o => pointInBox(wx, wy, shapeBox(o)));
       if (target) {
@@ -269,6 +323,6 @@ const Editor = {
       drawPlayer(ctx, v, c.x, c.y, 0, 0.45);
       return;
     }
-    drawShape(ctx, v, { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.rot, v: this.variants[this.tool] || 0 }, time, 0.6);
+    drawShape(ctx, v, this.shapeAt(c), time, 0.6);
   },
 };

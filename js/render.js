@@ -131,6 +131,10 @@ function drawShape(ctx, v, o, time = 0, alpha = 1) {
     drawSaw(ctx, o, (o.s / 2) * s, lw, time);
   } else if (o.t === 'boost') {
     drawBoost(ctx, sx(v, o.x), sy(v, o.y + o.s), o.s * s, lw, time);
+  } else if (o.t === 'glass') {
+    drawGlassWall(ctx, sx(v, o.x), sy(v, o.y + o.s), o.s * s, lw);
+  } else if (o.t === 'speed' || o.t === 'rocket') {
+    drawPickup(ctx, o, sx(v, o.x + o.s / 2), sy(v, o.y + o.s / 2), (o.s / 2) * s, lw, time);
   }
   ctx.restore();
 }
@@ -335,6 +339,18 @@ BLOCK_PAINTERS.Cloud = { outline: null, paint(c) {
   for (const [x, y, r] of puffs) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
   c.fillStyle = 'rgba(255,255,255,0.9)';
   c.fillRect(8, 28, 48, 18);
+} };
+
+BLOCK_PAINTERS.Glass = { outline: '#e8fbff', paint(c) {
+  c.fillStyle = 'rgba(170,225,255,0.35)';
+  c.fillRect(0, 0, TILE, TILE);
+  c.strokeStyle = 'rgba(255,255,255,0.8)';
+  c.lineWidth = 3;
+  c.strokeRect(4, 4, TILE - 8, TILE - 8);
+  c.lineWidth = 4;
+  c.beginPath(); c.moveTo(14, 30); c.lineTo(30, 14); c.stroke();
+  c.lineWidth = 2;
+  c.beginPath(); c.moveTo(18, 44); c.lineTo(44, 18); c.stroke();
 } };
 
 const tileCache = new Map();
@@ -661,4 +677,96 @@ function drawBoost(ctx, x, y, w, lw, time) {
     ctx.stroke();
   }
   ctx.lineCap = 'butt';
+}
+
+// ---------- Glass wall (shatters when touched) ----------
+
+function drawGlassWall(ctx, x, y, w, lw) {
+  const pw = Math.max(6, w * 0.3);
+  const px = x + (w - pw) / 2;
+  const g = ctx.createLinearGradient(px, 0, px + pw, 0);
+  g.addColorStop(0, 'rgba(200,240,255,0.55)');
+  g.addColorStop(0.5, 'rgba(140,210,245,0.3)');
+  g.addColorStop(1, 'rgba(200,240,255,0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(px, y, pw, w);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = lw * 0.6;
+  ctx.strokeRect(px, y, pw, w);
+  ctx.lineWidth = lw * 0.5;
+  for (let k = 0.2; k < 1; k += 0.35) {
+    ctx.beginPath();
+    ctx.moveTo(px + pw * 0.2, y + w * (k + 0.15));
+    ctx.lineTo(px + pw * 0.8, y + w * k);
+    ctx.stroke();
+  }
+}
+
+// ---------- Pickups: speed changes and rockets ----------
+
+function speedColor(v) {
+  return ['#3ddc84', '#ff9f1a', '#8f7bff', '#3ee0ff', '#ffffff'][v] || '#ffffff';
+}
+
+function drawPickup(ctx, o, cx, cy, r, lw, time) {
+  const bob = Math.sin(time * 4 + o.x) * r * 0.08;
+  const color = o.t === 'rocket' ? '#ff4d6d' : speedColor(o.v);
+  ctx.translate(cx, cy + bob);
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  dot(ctx, 0, 0, r * 0.85, 'rgba(10,12,40,0.75)');
+  ring(ctx, r * 0.85, color, lw);
+  ctx.shadowBlur = 0;
+  if (o.t === 'rocket') {
+    ctx.rotate(-Math.PI / 4);
+    drawRocketGlyph(ctx, r * 1.1);
+    return;
+  }
+  const fast = SPEED_VALUES[o.v] > 1, slow = SPEED_VALUES[o.v] < 1;
+  ctx.fillStyle = color;
+  ctx.font = `900 ${Math.round(r * 0.62)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(SPEED_NAMES[o.v], 0, r * 0.2);
+  // Arrows: » for fast, « for slow
+  if (fast || slow) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.5, r * 0.09);
+    const d = fast ? 1 : -1;
+    for (const k of [-0.18, 0.08]) {
+      ctx.beginPath();
+      ctx.moveTo((k * d - 0.08 * d) * r * 2, -r * 0.55);
+      ctx.lineTo((k * d + 0.04 * d) * r * 2, -r * 0.42);
+      ctx.lineTo((k * d - 0.08 * d) * r * 2, -r * 0.29);
+      ctx.stroke();
+    }
+  }
+}
+
+// Rocket pointing right, centred on (0, 0), about `len` long.
+function drawRocketGlyph(ctx, len) {
+  const h = len * 0.32;
+  ctx.fillStyle = '#ff9f1a';
+  polyPath(ctx, [[-len * 0.42, -h * 0.35], [-len * 0.62, 0], [-len * 0.42, h * 0.35]]);
+  ctx.fill();
+  ctx.fillStyle = '#e63950';
+  polyPath(ctx, [[-len * 0.3, -h * 0.5], [-len * 0.45, -h * 1.05], [-len * 0.1, -h * 0.5]]);
+  ctx.fill();
+  polyPath(ctx, [[-len * 0.3, h * 0.5], [-len * 0.45, h * 1.05], [-len * 0.1, h * 0.5]]);
+  ctx.fill();
+  ctx.fillStyle = '#eef2f7';
+  ctx.beginPath();
+  ctx.roundRect(-len * 0.42, -h / 2, len * 0.62, h, h * 0.3);
+  ctx.fill();
+  ctx.fillStyle = '#e63950';
+  polyPath(ctx, [[len * 0.2, -h / 2], [len * 0.45, 0], [len * 0.2, h / 2]]);
+  ctx.fill();
+  dot(ctx, 0, 0, h * 0.22, '#3ee0ff');
+}
+
+function drawRocket(ctx, v, x, y, time) {
+  ctx.save();
+  ctx.translate(sx(v, x + 0.3), sy(v, y) + Math.sin(time * 40) * 1);
+  drawRocketGlyph(ctx, v.scale * 0.8);
+  ctx.restore();
 }

@@ -1,18 +1,28 @@
 // Level data: create, validate, serialize (for files, links and localStorage).
 
-const STORAGE_CURRENT = 'geometryBash.current';
-const STORAGE_LEVELS = 'geometryBash.levels';
+const STORAGE_LIBRARY = 'geometryBash.library';     // { [id]: level } — all of the player's levels
+const STORAGE_CURRENT_ID = 'geometryBash.currentId';
 const STORAGE_BEST = 'geometryBash.best';
+// Before the library existed: one autosaved level plus levels saved by name (migrated once).
+const LEGACY_CURRENT = 'geometryBash.current';
+const LEGACY_LEVELS = 'geometryBash.levels';
+
+function newLevelId() {
+  return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+const defaultStart = () => ({ x: CONFIG.START_X, y: 0 });
 
 // doubleJump: lets players tap again in mid-air (CONFIG.AIR_JUMPS per attempt). Off by default.
+// start: where the cube spawns (the editor's START cube can be dragged).
 function newLevel(name = 'My Level') {
-  return { name, doubleJump: false, objects: [] };
+  return { id: newLevelId(), name, doubleJump: false, start: defaultStart(), objects: [], updated: Date.now() };
 }
 
 function levelEnd(level) {
   let maxX = 0;
   for (const o of level.objects) maxX = Math.max(maxX, o.x + o.s);
-  return Math.max(CONFIG.MIN_LENGTH, maxX + CONFIG.END_PADDING);
+  return Math.max(CONFIG.MIN_LENGTH, maxX + CONFIG.END_PADDING, (level.start?.x ?? 0) + 10);
 }
 
 function sanitizeObject(raw) {
@@ -29,9 +39,18 @@ function sanitizeObject(raw) {
   return { t, x, y, s, r, v };
 }
 
+function sanitizeStart(raw) {
+  const x = Math.round(Number(raw?.x)), y = Math.round(Number(raw?.y));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return defaultStart();
+  return { x: Math.max(CONFIG.START_X, Math.min(5000, x)), y: Math.max(0, Math.min(CONFIG.MAX_Y, y)) };
+}
+
 function sanitizeLevel(raw) {
   const level = newLevel(typeof raw?.name === 'string' ? raw.name.slice(0, 40) : 'My Level');
+  if (typeof raw?.id === 'string' && /^[\w-]{1,40}$/.test(raw.id)) level.id = raw.id;
+  if (Number.isFinite(raw?.updated)) level.updated = raw.updated;
   level.doubleJump = raw?.doubleJump === true;
+  level.start = raw?.start ? sanitizeStart(raw.start) : defaultStart();
   if (Array.isArray(raw?.objects)) {
     for (const o of raw.objects) {
       const clean = sanitizeObject(o);
@@ -41,13 +60,15 @@ function sanitizeLevel(raw) {
   return level;
 }
 
-// Compact form: { n: name, d: double jump 0/1, o: [[type, x, y, size, rot, texture], ...] }
+// Compact form: { n: name, d: double jump 0/1, st: [x, y] start, o: [[type, x, y, size, rot, texture], ...] }
 function encodeLevel(level) {
   const compact = {
     n: level.name,
     d: level.doubleJump ? 1 : 0,
     o: level.objects.map(o => [SHAPE_TYPES.indexOf(o.t), o.x, o.y, o.s, o.r, o.v]),
   };
+  const st = level.start || defaultStart();
+  if (st.x !== CONFIG.START_X || st.y !== 0) compact.st = [st.x, st.y];
   const bytes = new TextEncoder().encode(JSON.stringify(compact));
   let bin = '';
   bytes.forEach(b => { bin += String.fromCharCode(b); });
@@ -62,12 +83,14 @@ function decodeLevel(code) {
   return sanitizeLevel({
     name: compact.n,
     doubleJump: compact.d === 1,
+    start: compact.st ? { x: compact.st[0], y: compact.st[1] } : null,
     objects: (compact.o || []).map(([t, x, y, s, r, v]) => ({ t, x, y, s, r, v })),
   });
 }
 
 function levelToJSON(level) {
-  return JSON.stringify({ game: 'geometry-bash', version: 1, ...level }, null, 2);
+  const { id, updated, ...rest } = level;
+  return JSON.stringify({ game: 'geometry-bash', version: 2, ...rest }, null, 2);
 }
 
 function levelFromJSON(text) {
@@ -94,31 +117,62 @@ function storageSet(key, value) {
   }
 }
 
-function loadSavedLevels() {
-  const map = storageGet(STORAGE_LEVELS, {});
-  return map && typeof map === 'object' ? map : {};
+// ---------- Level library: every level the player has made ----------
+
+function loadLibrary() {
+  const map = storageGet(STORAGE_LIBRARY, null);
+  if (map && typeof map === 'object') {
+    const out = {};
+    for (const raw of Object.values(map)) {
+      const level = sanitizeLevel(raw);
+      out[level.id] = level;
+    }
+    return out;
+  }
+  return migrateLegacyLevels();
 }
 
-function saveLevelByName(level) {
-  const map = loadSavedLevels();
-  map[level.name] = level;
-  return storageSet(STORAGE_LEVELS, map);
+// Fold the old single autosave + named saves into the library (once).
+function migrateLegacyLevels() {
+  const lib = {};
+  const add = (raw) => {
+    const level = sanitizeLevel(raw);
+    level.id = newLevelId();
+    const dupe = Object.values(lib).some(l => l.name === level.name && levelKey(l) === levelKey(level));
+    if (!dupe) lib[level.id] = level;
+    return level;
+  };
+  const current = storageGet(LEGACY_CURRENT, null);
+  const named = storageGet(LEGACY_LEVELS, {});
+  let currentId = null;
+  if (current) currentId = add(current).id;
+  if (named && typeof named === 'object') Object.values(named).forEach(add);
+  if (!Object.keys(lib).length) currentId = add(demoLevel()).id;
+  storageSet(STORAGE_LIBRARY, lib);
+  storageSet(STORAGE_CURRENT_ID, currentId || Object.keys(lib)[0]);
+  return lib;
 }
 
-function deleteSavedLevel(name) {
-  const map = loadSavedLevels();
-  delete map[name];
-  storageSet(STORAGE_LEVELS, map);
+function storeLibrary(lib, currentId) {
+  storageSet(STORAGE_CURRENT_ID, currentId);
+  return storageSet(STORAGE_LIBRARY, lib);
 }
 
 // ---------- Best scores, keyed by level layout (renaming keeps the record) ----------
 
-function levelId(level) {
-  // Textures are cosmetic and don't count; double jump changes the challenge, so it does.
-  // (Cloud blocks behave differently, so they count.)
-  let text = JSON.stringify(level.objects.map(o =>
-    (o.t === 'square' && o.v === CLOUD_STYLE ? [o.t, o.x, o.y, o.s, o.r, 'cloud'] : [o.t, o.x, o.y, o.s, o.r])).sort());
+function levelKey(level) {
+  // Textures are cosmetic and don't count, except cloud/glass blocks (they behave differently).
+  // Double jump, speed pickups and a moved start change the challenge, so they count too.
+  const breakable = { [CLOUD_STYLE]: 'cloud', [GLASS_STYLE]: 'glass' };
+  let text = JSON.stringify(level.objects.map(o => {
+    const base = [o.t, o.x, o.y, o.s, o.r];
+    if (o.t === 'square' && breakable[o.v]) base.push(breakable[o.v]);
+    if (o.t === 'speed') base.push(o.v);
+    return base;
+  }).sort());
   if (level.doubleJump) text += '|double-jump';
+  const st = level.start || defaultStart();
+  if (st.x !== CONFIG.START_X || st.y !== 0) text += `|start:${st.x},${st.y}`;
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
   return h.toString(36);

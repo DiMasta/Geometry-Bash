@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Geometry Bash</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -21,8 +21,8 @@
         <button class="tool" data-tool="circle" title="Circle saw — deadly (3)">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg><span class="lbl">Circle</span>
         </button>
-        <button class="tool" data-tool="boost" title="Jump boost — launches you ~3 blocks up (4)">
-          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 12 L12 8 L16 12 M8 17 L12 13 L16 17" /></svg><span class="lbl">Boost</span>
+        <button class="tool" data-tool="item" title="Items: jump boost, glass wall, speed, slow, rockets (4)">
+          <svg viewBox="0 0 24 24"><path d="M12 3 L14.6 9 L21 9.6 L16.2 13.8 L17.6 20 L12 16.8 L6.4 20 L7.8 13.8 L3 9.6 L9.4 9 Z" /></svg><span class="lbl">Items</span>
         </button>
         <button class="tool" data-tool="eraser" title="Eraser (E) — or right-click">
           <svg viewBox="0 0 24 24"><path d="M4 16 L12 8 L19 15 L14 20 H8 Z" /></svg><span class="lbl">Erase</span>
@@ -30,7 +30,6 @@
         <button class="tool" data-tool="pan" title="Pan (H) — drag to scroll">
           <svg viewBox="0 0 24 24"><path d="M12 3 L15 6 H13 V11 H18 V9 L21 12 L18 15 V13 H13 V18 H15 L12 21 L9 18 H11 V13 H6 V15 L3 12 L6 9 V11 H11 V6 H9 Z" /></svg><span class="lbl">Pan</span>
         </button>
-
         <button class="tool" data-tool="flag" title="Test start (F) — tap a cell, then ▶ plays from there">
           <svg viewBox="0 0 24 24"><path d="M6 21 V4 M6 4 H17 L14 8 L17 12 H6" /></svg><span class="lbl">Test from</span>
         </button>
@@ -40,42 +39,38 @@
         <button id="undoBtn" title="Undo (Ctrl+Z)">↶<span class="lbl">Undo</span></button>
       </div>
 
-      <button id="menuBtn" title="Level menu: save, load, share" aria-haspopup="true" aria-expanded="false">☰</button>
+      <button id="menuBtn" title="Level menu: my levels, share, settings" aria-haspopup="true" aria-expanded="false">☰</button>
       <button id="playBtn" class="play" title="Play this level (P / Enter)">▶<span class="lbl-play"> Play</span></button>
 
       <div id="menu" hidden>
+        <div class="row">
+          <button id="levelsBtn" class="grow">📁 My levels <span id="levelCount" class="count"></span></button>
+          <button id="newLevelMenuBtn" class="grow">＋ New level</button>
+        </div>
         <div class="field">
           <span>Level name</span>
-          <div class="row">
-            <input id="levelName" type="text" maxlength="40" placeholder="Level name">
-            <button id="saveBtn" title="Save to this browser">Save</button>
-          </div>
+          <input id="levelName" type="text" maxlength="40" placeholder="Level name">
         </div>
         <label class="toggle">
           <input type="checkbox" id="doubleJumpToggle">
           <span>Allow double jump<small>Tap again in mid-air · 3 per attempt</small></span>
         </label>
-        <div class="field">
-          <span>Saved levels</span>
-          <div class="row">
-            <select id="levelSelect" aria-label="Saved levels"><option value="">Load…</option></select>
-            <button id="deleteBtn" title="Delete selected saved level">🗑</button>
-          </div>
-        </div>
         <div class="row">
           <button id="shareBtn" title="Copy a link that contains this level">🔗 Share link</button>
           <button id="exportBtn" title="Download level as a file">Export</button>
-          <button id="importBtn" title="Load level from a file">Import</button>
+          <button id="importBtn" title="Load a level from a file (added to My levels)">Import</button>
           <input id="importFile" type="file" accept=".json,application/json" hidden>
         </div>
         <button id="clearBtn" class="danger" title="Remove all shapes">Clear level</button>
         <p class="help">
-          Click / tap to place · drag to paint · right-click or Erase to remove.<br>
-          Keys: 1–3 shapes · 4 boost · F test start · E erase · H pan · R rotate · [ ] size · Ctrl+Z undo · P play.<br>
-          Pick size, rotation and texture in the bar at the bottom of the level.<br>
+          Your levels save automatically.<br>
+          Click / tap to place · drag to paint · right-click or Erase to remove · drag the START cube to move the start.<br>
+          Size, rotation and textures are in the bar under the level.<br>
           🚩 Test from: tap a cell and ▶ plays from there (best score isn't saved).<br>
-          Boost launches you ~3 blocks up · cloud blocks vanish after you land on them.<br>
-          Playing: Space / tap to jump (double jump if enabled above).
+          Items: boost (~3 blocks up), glass wall (shatters), speed 2× 3×, slow ½× ¾×, normal 1×, rockets.<br>
+          Glass blocks shatter and cloud blocks vanish after you land on them.<br>
+          Keys: 1–3 shapes · 4 items · F test start · E erase · H pan · R rotate · [ ] size · Ctrl+Z undo · P play.<br>
+          Playing: Space / tap to jump · X or the 🚀 button fires a rocket.
         </p>
       </div>
     </header>
@@ -88,50 +83,71 @@
         <div class="hud-row">
           <span id="attempt">Attempt 1</span>
           <span id="percent">0%</span>
+          <span id="speedHud" hidden>⏩ 2×</span>
           <span id="airJumpsHud" title="Double jumps left — tap again in mid-air">2× <span id="airJumps"></span></span>
           <button id="stopBtn" title="Back to editor (Esc)">✎ Edit</button>
         </div>
       </div>
 
+      <button id="rocketBtn" hidden title="Fire a rocket (X)" aria-label="Fire a rocket">
+        <span class="rocket-icon">🚀</span><span id="rocketCount">3</span>
+      </button>
+
       <div id="resultScreen" class="overlay" hidden>
-        <div class="card">
-          <h1 id="resultTitle">Crashed!</h1>
-          <div id="newBest" class="badge" hidden>★ New best!</div>
-          <div class="score"><span id="resultScore">0%</span><small>score</small></div>
-          <dl class="stats">
-            <div><dt>Best</dt><dd id="resultBest">0%</dd></div>
-            <div><dt>Attempt</dt><dd id="resultAttempt">1</dd></div>
-            <div><dt>Time</dt><dd id="resultTime">0.0s</dd></div>
-            <div id="resultAirRow"><dt>Double jumps left</dt><dd id="resultAir">3</dd></div>
-          </dl>
-          <div class="row">
-            <button id="retryBtn" class="play">↻ Retry</button>
-            <button id="newGameBtn">★ New game</button>
-            <button id="editBtn">✎ Edit level</button>
+        <div class="card result">
+          <div class="result-head">
+            <h1 id="resultTitle">Crashed!</h1>
+            <div id="newBest" class="badge" hidden>★ New best!</div>
+            <div class="score"><span id="resultScore">0%</span><small>score</small></div>
           </div>
-          <p class="keys">Space: retry · N: new game · Esc: edit</p>
+          <div class="result-body">
+            <dl class="stats">
+              <div><dt>Best</dt><dd id="resultBest">0%</dd></div>
+              <div><dt>Attempt</dt><dd id="resultAttempt">1</dd></div>
+              <div><dt>Time</dt><dd id="resultTime">0.0s</dd></div>
+              <div id="resultAirRow"><dt>Double jumps</dt><dd id="resultAir">3</dd></div>
+            </dl>
+            <div class="actions">
+              <button id="retryBtn" class="play big">↻ Retry</button>
+              <div class="row">
+                <button id="newGameBtn">★ New game</button>
+                <button id="editBtn">✎ Edit level</button>
+              </div>
+            </div>
+            <p class="keys">Space: retry · N: new game · Esc: edit</p>
+          </div>
         </div>
       </div>
 
+      <div id="toast" hidden></div>
+    </main>
+
+    <footer id="bottomBar">
       <div id="optionsBar">
         <button id="sizeBtn" title="Shape size ([ / ])"><span id="sizeLabel">1×</span></button>
         <button id="rotateBtn" title="Rotate triangle (R)">↻
           <svg id="rotIcon" viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20" /></svg>
         </button>
-        <span class="sep"></span>
         <div id="swatches" role="radiogroup" aria-label="Texture"></div>
       </div>
-      <button id="testChip" hidden title="Tap to play from the level start again">
-        🚩 Testing from column <span id="testCol">0</span> <b>✕</b>
-      </button>
-      <div id="toast" hidden></div>
-    </main>
-
-    <footer id="bottomBar">
-      <button id="scrollLeft" title="Scroll left (←)" aria-label="Scroll left">◀</button>
-      <input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level">
-      <button id="scrollRight" title="Scroll right (→)" aria-label="Scroll right">▶</button>
+      <div id="scrollGroup">
+        <button id="testChip" hidden title="Tap to play from the level start again">🚩<span id="testCol">0</span> ✕</button>
+        <button id="scrollLeft" title="Scroll left (←)" aria-label="Scroll left">◀</button>
+        <input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level">
+        <button id="scrollRight" title="Scroll right (→)" aria-label="Scroll right">▶</button>
+      </div>
     </footer>
+  </div>
+
+  <div id="levelsScreen" class="overlay fixed" hidden>
+    <div class="card levels">
+      <div class="levels-head">
+        <h2>My levels</h2>
+        <button id="newLevelBtn" class="play">＋ New level</button>
+        <button id="closeLevelsBtn" aria-label="Close">✕</button>
+      </div>
+      <ul id="levelList"></ul>
+    </div>
   </div>
 
   <script src="js/config.js"></script>

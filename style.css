@@ -32,6 +32,7 @@ html, body {
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 input, select { user-select: text; -webkit-user-select: text; }
@@ -59,6 +60,7 @@ button {
 }
 button:hover { background: #1a2263; border-color: #4757b8; }
 button:active { transform: translateY(1px); }
+[hidden] { display: none !important; }
 
 button.play {
   background: var(--play);
@@ -67,8 +69,8 @@ button.play {
   font-weight: 800;
 }
 button.play:hover { background: #5cf09d; }
-
 button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
+button.grow { flex: 1; }
 
 /* ---------- Toolbar (always one row) ---------- */
 #toolbar {
@@ -79,7 +81,6 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   padding: 6px 8px;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
   border-bottom: 2px solid var(--border);
-  user-select: none;
   z-index: 5;
 }
 
@@ -117,7 +118,6 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   flex-shrink: 0;
 }
 #rotIcon { transition: transform .15s; width: 14px !important; height: 14px !important; }
-#rotateBtn { gap: 3px; }
 
 .tool { min-width: 38px; }
 .tool.active {
@@ -126,7 +126,6 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   border-color: var(--accent);
   font-weight: 700;
 }
-#sizeBtn { font-weight: 800; min-width: 44px; }
 #menuBtn { font-size: 18px; min-width: 40px; }
 #menuBtn[aria-expanded="true"] { background: var(--panel-2); border-color: var(--accent); }
 #playBtn { padding: 0 16px; }
@@ -136,7 +135,9 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   position: absolute;
   top: calc(100% + 6px);
   right: 8px;
-  width: min(360px, calc(100vw - 16px));
+  width: min(380px, calc(100vw - 16px));
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -147,12 +148,11 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
   animation: pop .15s ease-out;
 }
-#menu[hidden] { display: none; }
 #menu .row { display: flex; gap: 6px; flex-wrap: wrap; }
 #menu .field { display: flex; flex-direction: column; gap: 4px; }
 #menu .field > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-#menu input[type="text"], #menu select { flex: 1; min-width: 0; }
 #menu .help { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.count { background: var(--panel-2); border-radius: 999px; padding: 0 7px; font-size: 12px; }
 
 .toggle {
   display: flex;
@@ -167,50 +167,6 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
 .toggle span { display: flex; flex-direction: column; font-weight: 700; }
 .toggle small { font-weight: 400; font-size: 12px; color: var(--muted); }
-
-/* ---------- Options bar for the selected shape (over the canvas, bottom-left) ---------- */
-#optionsBar {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  max-width: calc(100% - 16px);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  background: rgba(10, 15, 46, .85);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  z-index: 2;
-}
-#optionsBar::-webkit-scrollbar { display: none; }
-#optionsBar[hidden], #rotateBtn[hidden] { display: none; }
-#optionsBar > button { height: 36px; padding: 0 8px; }
-#swatches { display: flex; gap: 4px; }
-#swatches button {
-  width: 36px;
-  height: 36px;
-  padding: 2px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, .06);
-}
-#swatches button.active { border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(255, 210, 63, .3); }
-#swatches canvas { width: 100%; height: 100%; display: block; border-radius: 3px; }
-
-#testChip {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  height: 32px;
-  font-size: 13px;
-  background: rgba(10, 15, 46, .85);
-  border-color: var(--play);
-  z-index: 2;
-}
-#testChip[hidden] { display: none; }
-#testChip b { color: var(--danger); }
 
 /* ---------- Stage ---------- */
 #stage {
@@ -230,25 +186,57 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
 #canvas.panning { cursor: grabbing; }
 #canvas.playing { cursor: pointer; }
 
-/* ---------- Bottom bar (scrolling) ---------- */
+/* ---------- Bottom bar: shape options + scrolling (never covers the level) ---------- */
 #bottomBar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
   background: linear-gradient(0deg, var(--panel-2), var(--panel));
   border-top: 2px solid var(--border);
 }
-#bottomBar button { width: 44px; padding: 0; }
-#scroll { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
 
-/* ---------- HUD ---------- */
+#optionsBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#optionsBar::-webkit-scrollbar { display: none; }
+#optionsBar > button { height: 36px; padding: 0 8px; }
+#sizeBtn { font-weight: 800; min-width: 42px; }
+#swatches { display: flex; gap: 4px; }
+#swatches button {
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .06);
+}
+#swatches button.active { border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(255, 210, 63, .3); }
+#swatches canvas { width: 100%; height: 100%; display: block; border-radius: 3px; }
+
+#scrollGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+#scrollGroup button { width: 40px; height: 36px; padding: 0; }
+#scroll { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
+#testChip { width: auto !important; padding: 0 8px !important; border-color: var(--play); font-size: 13px; gap: 3px; }
+
+/* ---------- HUD (play mode) ---------- */
 #hud {
   position: absolute;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(520px, calc(100% - 24px));
+  width: min(560px, calc(100% - 24px));
   pointer-events: none;
 }
 .progress {
@@ -267,14 +255,38 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-top: 6px;
   font-weight: 800;
   text-shadow: 0 2px 2px #000;
 }
 #stopBtn { pointer-events: auto; height: 28px; font-size: 13px; }
 #airJumps { color: var(--accent); letter-spacing: 2px; }
+#speedHud { color: var(--play); }
 
-/* ---------- Result screen (crash / complete) ---------- */
+/* Big round fire button on the left */
+#rocketBtn {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(230, 57, 80, .85);
+  border: 3px solid #fff;
+  box-shadow: 0 0 20px rgba(255, 77, 109, .7);
+  font-size: 26px;
+  touch-action: none;
+  z-index: 2;
+}
+#rocketBtn:hover { background: rgba(255, 77, 109, .95); }
+#rocketBtn:active { transform: translateY(-50%) scale(.94); }
+#rocketCount { font-size: 15px; font-weight: 900; line-height: 1; }
+
+/* ---------- Overlays ---------- */
 .overlay {
   position: absolute;
   inset: 0;
@@ -282,16 +294,16 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   align-items: center;
   justify-content: center;
   padding: 12px;
-  background: rgba(5, 8, 25, .6);
+  background: rgba(5, 8, 25, .65);
   z-index: 3;
 }
-.overlay[hidden], #hud[hidden], #toast[hidden] { display: none; }
+.overlay.fixed { position: fixed; z-index: 10; }
 
 .card {
   background: var(--panel);
   border: 2px solid var(--border);
   border-radius: 16px;
-  padding: 22px 26px;
+  padding: 20px;
   width: min(420px, 100%);
   max-height: 100%;
   overflow-y: auto;
@@ -299,12 +311,13 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
   animation: pop .25s ease-out;
 }
-.card h1 { margin: 0; font-size: 30px; color: var(--danger); }
-.card.win h1 { color: var(--accent); }
 
+/* Result screen (crash / complete) */
+.result h1 { margin: 0; font-size: 28px; color: var(--danger); line-height: 1.15; }
+.result.win h1 { color: var(--accent); }
 .badge {
   display: inline-block;
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 3px 10px;
   border-radius: 999px;
   background: var(--accent);
@@ -312,33 +325,75 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   font-weight: 800;
   font-size: 13px;
 }
-.badge[hidden] { display: none; }
-
-.score { margin: 10px 0 6px; }
-.score span { display: block; font-size: 52px; font-weight: 900; line-height: 1; }
+.score { margin: 8px 0 4px; }
+.score span { display: block; font-size: 48px; font-weight: 900; line-height: 1; }
 .score small { color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
 
 .stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 14px 0 18px;
+  gap: 6px;
+  margin: 12px 0 14px;
 }
 .stats div {
   background: rgba(0, 0, 0, .25);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 8px;
+  padding: 6px;
 }
+.stats.three { grid-template-columns: repeat(3, 1fr); }
 .stats dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-.stats dd { margin: 2px 0 0; font-size: 20px; font-weight: 800; }
+.stats dd { margin: 2px 0 0; font-size: 19px; font-weight: 800; }
 
-.card .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.card .row button { flex: 1 1 110px; }
-.card .keys { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+.actions { display: flex; flex-direction: column; gap: 8px; }
+.actions .row { display: flex; gap: 8px; }
+.actions .row button { flex: 1; min-width: 0; }
+button.big { height: 48px; font-size: 18px; width: 100%; }
+.result .keys { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+/* Phones held sideways: two columns so everything fits without scrolling */
+@media (max-height: 520px) and (orientation: landscape) {
+  .card.result {
+    width: min(660px, 100%);
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+  }
+  .score span { font-size: 44px; }
+  .stats { margin: 0 0 10px; }
+  .stats dd { font-size: 17px; }
+  button.big { height: 42px; }
+}
+/* Touch screens have no keyboard hints */
+@media (hover: none) { .result .keys { display: none; } }
+
+/* Level library */
+.card.levels { width: min(560px, 100%); max-height: min(640px, 100%); display: flex; flex-direction: column; padding: 14px; text-align: left; }
+.levels-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.levels-head h2 { margin: 0; flex: 1; font-size: 22px; }
+#levelList { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.level-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: #0e143a;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.level-item:hover { border-color: #4757b8; }
+.level-item.current { border-color: var(--accent); }
+.level-item canvas { width: 110px; height: 36px; border-radius: 6px; flex-shrink: 0; background: #0a0f2e; }
+.level-item .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.level-item .info b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.level-item .info small { color: var(--muted); font-size: 12px; }
+.level-item button { width: 38px; padding: 0; }
 
 @keyframes pop {
-  from { transform: scale(.9); opacity: 0; }
+  from { transform: scale(.92); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
@@ -356,13 +411,13 @@ button.danger { color: var(--danger); border-color: rgba(255, 77, 109, .5); }
   box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
   max-width: calc(100% - 24px);
   z-index: 4;
+  pointer-events: none;
 }
 
-/* While playing the canvas gets the whole screen */
+/* While playing the canvas gets the whole screen; the HUD steps aside for the result screen */
 body.playing #toolbar,
-body.playing #bottomBar,
-body.playing #optionsBar,
-body.playing #testChip { display: none; }
+body.playing #bottomBar { display: none; }
+body.result-open #hud, body.result-open #rocketBtn { display: none; }
 
 /* Compact: icons only */
 @media (max-width: 1100px) {
@@ -373,10 +428,26 @@ body.playing #testChip { display: none; }
   #toolbar { gap: 4px; padding: 6px; }
   #toolRow { gap: 3px; }
   #toolRow button, #menuBtn { min-width: 36px; padding: 0 6px; }
-  #swatches button { width: 32px; height: 32px; }
   .tool[data-tool="pan"], .sep { display: none; }   /* two-finger drag pans on touch screens */
   #playBtn { padding: 0 12px; }
   .lbl-play { display: none; }
-  .card { padding: 18px 16px; }
-  .score span { font-size: 44px; }
+  #swatches button { width: 32px; height: 32px; }
+  .level-item canvas { width: 72px; }
+}
+/* Portrait phones: options get their own row above the scroll controls */
+@media (max-width: 600px) {
+  #bottomBar { flex-wrap: wrap; row-gap: 5px; }
+  #optionsBar { flex: 1 1 100%; }
+  #optionsBar:empty, #optionsBar[hidden] { display: none; }
+}
+/* Landscape phones: slimmer bars leave more room for the level */
+@media (max-height: 520px) {
+  #toolbar { padding: 4px 6px; }
+  #toolbar button { height: 34px; }
+  #bottomBar { padding: 3px 8px calc(3px + env(safe-area-inset-bottom)); }
+  #optionsBar > button, #scrollGroup button { height: 32px; }
+  #swatches button { width: 32px; height: 32px; }
+  .brand { display: none; }
+  #hud { top: 6px; }
+  #rocketBtn { width: 64px; height: 64px; }
 }
