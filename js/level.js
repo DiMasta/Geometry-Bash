@@ -2,6 +2,7 @@
 
 const STORAGE_CURRENT = 'geometryBash.current';
 const STORAGE_LEVELS = 'geometryBash.levels';
+const STORAGE_BEST = 'geometryBash.best';
 
 function newLevel(name = 'My Level') {
   return { name, objects: [] };
@@ -102,6 +103,25 @@ function deleteSavedLevel(name) {
   const map = loadSavedLevels();
   delete map[name];
   storageSet(STORAGE_LEVELS, map);
+}
+
+// ---------- Best scores, keyed by level layout (renaming keeps the record) ----------
+
+function levelId(level) {
+  const text = JSON.stringify(level.objects.map(o => [o.t, o.x, o.y, o.s, o.r]).sort());
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+function loadBest(id) {
+  return Number(storageGet(STORAGE_BEST, {})[id]) || 0;
+}
+
+function saveBest(id, percent) {
+  const map = storageGet(STORAGE_BEST, {});
+  map[id] = percent;
+  storageSet(STORAGE_BEST, map);
 }
 
 // ---------- Demo level shown on first visit ----------

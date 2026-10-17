@@ -11,53 +11,63 @@
     <header id="toolbar">
       <div class="brand">Geometry <span>Bash</span></div>
 
-      <div class="group" id="tools" role="toolbar" aria-label="Tools">
+      <div id="toolRow" role="toolbar" aria-label="Editor tools">
         <button class="tool active" data-tool="square" title="Square block — you can land on it (1)">
-          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /></svg><span>Square</span>
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /></svg><span class="lbl">Square</span>
         </button>
         <button class="tool" data-tool="triangle" title="Triangle spike — deadly (2)">
-          <svg viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20" /></svg><span>Triangle</span>
+          <svg viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20" /></svg><span class="lbl">Triangle</span>
         </button>
         <button class="tool" data-tool="circle" title="Circle saw — deadly (3)">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg><span>Circle</span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg><span class="lbl">Circle</span>
         </button>
         <button class="tool" data-tool="eraser" title="Eraser (E) — or right-click">
-          <svg viewBox="0 0 24 24"><path d="M4 16 L12 8 L19 15 L14 20 H8 Z" /></svg><span>Erase</span>
+          <svg viewBox="0 0 24 24"><path d="M4 16 L12 8 L19 15 L14 20 H8 Z" /></svg><span class="lbl">Erase</span>
         </button>
         <button class="tool" data-tool="pan" title="Pan (H) — drag to scroll">
-          <svg viewBox="0 0 24 24"><path d="M12 3 L15 6 H13 V11 H18 V9 L21 12 L18 15 V13 H13 V18 H15 L12 21 L9 18 H11 V13 H6 V15 L3 12 L6 9 V11 H11 V6 H9 Z" /></svg><span>Pan</span>
+          <svg viewBox="0 0 24 24"><path d="M12 3 L15 6 H13 V11 H18 V9 L21 12 L18 15 V13 H13 V18 H15 L12 21 L9 18 H11 V13 H6 V15 L3 12 L6 9 V11 H11 V6 H9 Z" /></svg><span class="lbl">Pan</span>
         </button>
+
+        <span class="sep"></span>
+
+        <button id="sizeBtn" title="Shape size ([ / ])"><span id="sizeLabel">1×</span><span class="lbl">size</span></button>
+        <button id="rotateBtn" title="Rotate triangle (R)">↻
+          <svg id="rotIcon" viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20" /></svg><span class="lbl" id="rotLabel">Up</span>
+        </button>
+        <button id="undoBtn" title="Undo (Ctrl+Z)">↶<span class="lbl">Undo</span></button>
       </div>
 
-      <div class="group" aria-label="Shape options">
-        <div class="seg" id="sizes" title="Shape size">
-          <button data-size="1" class="active">1×</button>
-          <button data-size="2">2×</button>
-          <button data-size="3">3×</button>
+      <button id="menuBtn" title="Level menu: save, load, share" aria-haspopup="true" aria-expanded="false">☰</button>
+      <button id="playBtn" class="play" title="Play this level (P / Enter)">▶<span class="lbl-play"> Play</span></button>
+
+      <div id="menu" hidden>
+        <div class="field">
+          <span>Level name</span>
+          <div class="row">
+            <input id="levelName" type="text" maxlength="40" placeholder="Level name">
+            <button id="saveBtn" title="Save to this browser">Save</button>
+          </div>
         </div>
-        <button id="rotateBtn" title="Rotate triangle (R)">⟳ <span id="rotLabel">Up</span></button>
+        <div class="field">
+          <span>Saved levels</span>
+          <div class="row">
+            <select id="levelSelect" aria-label="Saved levels"><option value="">Load…</option></select>
+            <button id="deleteBtn" title="Delete selected saved level">🗑</button>
+          </div>
+        </div>
+        <div class="row">
+          <button id="shareBtn" title="Copy a link that contains this level">🔗 Share link</button>
+          <button id="exportBtn" title="Download level as a file">Export</button>
+          <button id="importBtn" title="Load level from a file">Import</button>
+          <input id="importFile" type="file" accept=".json,application/json" hidden>
+        </div>
+        <button id="clearBtn" class="danger" title="Remove all shapes">Clear level</button>
+        <p class="help">
+          Click / tap to place · drag to paint · right-click or Erase to remove.<br>
+          Keys: 1–3 shapes · E erase · H pan · R rotate · [ ] size · Ctrl+Z undo · P play.<br>
+          Playing: Space / tap to jump, tap again in mid-air to double jump (3 per attempt).
+        </p>
       </div>
-
-      <div class="group">
-        <button id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
-        <button id="clearBtn" title="Remove all shapes">Clear</button>
-      </div>
-
-      <div class="group">
-        <input id="levelName" type="text" maxlength="40" placeholder="Level name" aria-label="Level name">
-        <button id="saveBtn" title="Save to this browser">Save</button>
-        <select id="levelSelect" aria-label="Saved levels"><option value="">Load…</option></select>
-        <button id="deleteBtn" title="Delete selected saved level">🗑</button>
-      </div>
-
-      <div class="group">
-        <button id="shareBtn" title="Copy a link that contains this level">🔗 Share</button>
-        <button id="exportBtn" title="Download level as a file">Export</button>
-        <button id="importBtn" title="Load level from a file">Import</button>
-        <input id="importFile" type="file" accept=".json,application/json" hidden>
-      </div>
-
-      <button id="playBtn" class="play" title="Play this level (P / Enter)">▶ Play</button>
     </header>
 
     <main id="stage">
@@ -73,21 +83,34 @@
         </div>
       </div>
 
-      <div id="winScreen" class="overlay" hidden>
+      <div id="resultScreen" class="overlay" hidden>
         <div class="card">
-          <h1>Level Complete!</h1>
-          <p id="winStats"></p>
+          <h1 id="resultTitle">Crashed!</h1>
+          <div id="newBest" class="badge" hidden>★ New best!</div>
+          <div class="score"><span id="resultScore">0%</span><small>score</small></div>
+          <dl class="stats">
+            <div><dt>Best</dt><dd id="resultBest">0%</dd></div>
+            <div><dt>Attempt</dt><dd id="resultAttempt">1</dd></div>
+            <div><dt>Time</dt><dd id="resultTime">0.0s</dd></div>
+            <div><dt>Double jumps left</dt><dd id="resultAir">3</dd></div>
+          </dl>
           <div class="row">
-            <button id="replayBtn" class="play">↻ Play again</button>
-            <button id="backBtn">✎ Edit level</button>
+            <button id="retryBtn" class="play">↻ Retry</button>
+            <button id="newGameBtn">★ New game</button>
+            <button id="editBtn">✎ Edit level</button>
           </div>
+          <p class="keys">Space: retry · N: new game · Esc: edit</p>
         </div>
       </div>
 
-      <div id="scrollbar"><input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level"></div>
-      <div id="hint">Click to place · Right-click to erase · Scroll wheel / arrows to move · Space to jump · tap again in mid-air to double jump (3 per attempt)</div>
       <div id="toast" hidden></div>
     </main>
+
+    <footer id="bottomBar">
+      <button id="scrollLeft" title="Scroll left (←)" aria-label="Scroll left">◀</button>
+      <input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level">
+      <button id="scrollRight" title="Scroll right (→)" aria-label="Scroll right">▶</button>
+    </footer>
   </div>
 
   <script src="js/config.js"></script>

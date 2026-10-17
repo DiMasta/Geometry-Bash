@@ -13,7 +13,9 @@ Plain HTML/CSS/JavaScript: no build step and no dependencies, so it runs as-is o
 
 - Every shape comes in 1×, 2× or 3× size.
 - Left-click (or tap) places a shape, and you can drag to paint. Right-click or the **Erase** tool removes shapes.
-- Scroll the level with the mouse wheel, the arrow keys, the slider, or the **Pan** tool (handy on touch screens).
+- Scroll the level with the mouse wheel, the arrow keys, the slider and ◀ ▶ buttons under the canvas, the **Pan** tool,
+  or a two-finger drag on touch screens.
+- Saving, loading, sharing and clearing live in the **☰** menu.
 - The finish line moves automatically to 10 cells after your last shape.
 
 **Editor shortcuts:** `1` square · `2` triangle · `3` circle · `E` eraser · `H` pan · `R` rotate triangle ·
@@ -26,6 +28,13 @@ The cube runs on its own. Press `Space`, `↑`, `W`, click or tap to jump. Hold 
 **Double jump:** press or tap again while in the air to jump a second time, which takes you to about 3.7 cells high,
 enough to clear a 3-block wall. You get **3 double jumps per attempt** (shown as ●●● in the top bar), and they refill each time you restart.
 `Esc` returns to the editor.
+
+When you crash, the result screen shows your **score** (how far you got, in %), your **best** score on that level
+(remembered in your browser), the attempt number, the time and the double jumps you had left, with:
+
+- **↻ Retry** (`Space`): next attempt
+- **★ New game** (`N`): start over from attempt 1
+- **✎ Edit level** (`Esc`): back to the editor
 
 ## Save & share
 

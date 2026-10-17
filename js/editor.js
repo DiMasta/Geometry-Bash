@@ -28,6 +28,12 @@ const Editor = {
     this.camX = Math.min(this.maxCamX(), Math.max(CONFIG.START_X - 1, this.camX));
   },
 
+  // Where the camera starts: show the spawn on wide screens, column 0 on phones.
+  homeX() {
+    const viewCells = this.view ? this.view.W / this.view.scale : 20;
+    return viewCells < 14 ? -1 : CONFIG.START_X - 1;
+  },
+
   scrollBy(cells) {
     this.camX += cells;
     this.clampCamera();
@@ -99,6 +105,15 @@ const Editor = {
     if (mode !== 'pan') this.applyStroke(w);
   },
 
+  // Second finger down: undo what the first finger painted and pan instead.
+  beginTwoFingerPan(px) {
+    if (this.stroke?.changed) {
+      this.level.objects = JSON.parse(this.stroke.before);
+      this.onChange();
+    }
+    this.stroke = { mode: 'pan', before: this.snapshot(), changed: false, startX: px, startCam: this.camX };
+  },
+
   pointerMove(px, py) {
     if (!this.view) return;
     const w = screenToWorld(this.view, px, py);
@@ -132,7 +147,7 @@ const Editor = {
   // ---------- Drawing ----------
 
   draw(ctx, W, H, time) {
-    const v = this.view = makeView(W, H, this.camX);
+    const v = this.view = makeView(W, H, this.camX, 0, CONFIG.EDIT_MIN_COLS);
     drawBackground(ctx, v, 225);
     drawGround(ctx, v, 225);
 

@@ -2,7 +2,8 @@
 const CONFIG = {
   VIEW_ROWS: 13.5,      // world cells visible vertically
   GROUND_ROWS: 2,       // cells of ground visible below y = 0
-  MIN_VIEW_COLS: 18,    // zoom out on narrow (portrait) screens to show at least this many cells
+  MIN_VIEW_COLS: 18,    // play mode: zoom out on narrow (portrait) screens to show at least this many cells
+  EDIT_MIN_COLS: 8,     // editor: bigger cells on phones so they are easy to tap
   MAX_Y: 11,            // highest row a shape can be placed in
   START_X: -6,          // player spawn x (the editor only allows x >= 0)
   END_PADDING: 10,      // empty cells after the last shape before the finish line

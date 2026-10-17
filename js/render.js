@@ -1,7 +1,7 @@
 // Drawing helpers shared by the editor and the game.
 
-function makeView(W, H, camX, camY = 0) {
-  const scale = Math.min(H / CONFIG.VIEW_ROWS, W / CONFIG.MIN_VIEW_COLS);
+function makeView(W, H, camX, camY = 0, minCols = CONFIG.MIN_VIEW_COLS) {
+  const scale = Math.min(H / CONFIG.VIEW_ROWS, W / minCols);
   return { W, H, scale, camX, camY, groundY: H - CONFIG.GROUND_ROWS * scale };
 }
 

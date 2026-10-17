@@ -116,12 +116,18 @@ const Game = {
   deathTimer: 0,
   particles: [],
   view: null,
-  finished: false,
+  reported: false,      // result screen already shown for this attempt
+  steps: 0,             // physics steps this attempt (for the time stat)
+  levelKey: '',
+  best: 0,
   onHud: () => {},
-  onWin: () => {},
+  onResult: () => {},   // (kind: 'dead' | 'win', stats)
 
+  // New game: attempt counter back to 1.
   start(level) {
     this.level = level;
+    this.levelKey = levelId(level);
+    this.best = loadBest(this.levelKey);
     this.attempts = 0;
     this.jumpHeld = false;
     this.jumpPressed = false;
@@ -135,7 +141,8 @@ const Game = {
     this.camY = 0;
     this.acc = 0;
     this.deathTimer = 0;
-    this.finished = false;
+    this.reported = false;
+    this.steps = 0;
     this.particles = [];
     this.jumpPressed = false;
     this.updateCamera(1);
@@ -151,15 +158,12 @@ const Game = {
     const { p } = this.sim;
     this.updateParticles(dt);
 
-    if (p.dead) {
+    if (p.dead || p.won) {
+      // Let the explosion play out before showing the result screen.
       this.deathTimer -= dt;
-      if (this.deathTimer <= 0) this.restart();
-      return;
-    }
-    if (p.won) {
-      if (!this.finished) {
-        this.finished = true;
-        this.onWin(this.attempts);
+      if (!this.reported && this.deathTimer <= 0) {
+        this.reported = true;
+        this.onResult(p.won ? 'win' : 'dead', this.finishAttempt());
       }
       return;
     }
@@ -169,13 +173,17 @@ const Game = {
       this.acc -= CONFIG.DT;
       const event = this.sim.step(this.jumpHeld, this.jumpPressed);
       this.jumpPressed = false;
+      this.steps++;
       if (event === 'air') this.airBurst(p.x + 0.5, p.y + 0.5);
       if (p.dead) {
         this.explode(p.x + 0.5, p.y + 0.5);
         this.deathTimer = 0.8;
         break;
       }
-      if (p.won) break;
+      if (p.won) {
+        this.deathTimer = 0.3;
+        break;
+      }
     }
 
     // Spin in the air, settle to the nearest quarter turn on the ground.
@@ -195,6 +203,23 @@ const Game = {
 
     this.updateCamera(dt);
     this.onHud(this.attempts, this.progress(), p.airJumps);
+  },
+
+  finishAttempt() {
+    const { p } = this.sim;
+    const score = p.won ? 100 : Math.floor(this.progress() * 100);
+    const newBest = score > this.best;
+    if (newBest) {
+      this.best = score;
+      saveBest(this.levelKey, score);
+    }
+    return {
+      score, newBest,
+      best: this.best,
+      attempts: this.attempts,
+      time: this.steps * CONFIG.DT,
+      airJumps: p.airJumps,
+    };
   },
 
   updateCamera(dt) {
