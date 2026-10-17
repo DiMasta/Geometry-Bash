@@ -179,6 +179,7 @@ button.play:hover { background: #5cf09d; }
   text-shadow: 0 2px 2px #000;
 }
 #stopBtn { pointer-events: auto; height: 28px; font-size: 13px; }
+#airJumps { color: var(--accent); letter-spacing: 2px; }
 
 /* ---------- Overlays ---------- */
 .overlay {

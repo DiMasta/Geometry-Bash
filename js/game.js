@@ -19,17 +19,31 @@ function createSim(level) {
     return out;
   };
 
-  const p = { x: CONFIG.START_X, y: 0, vy: 0, grounded: true, dead: false, won: false };
+  const p = {
+    x: CONFIG.START_X, y: 0, vy: 0, grounded: true, dead: false, won: false,
+    airJumps: CONFIG.AIR_JUMPS, airJumped: false,
+  };
   const end = levelEnd(level);
 
-  function step(jump) {
+  // held: jump input is down (auto-jumps on landing); pressed: a new tap this step (double jump).
+  // Returns 'air' when a double jump was used.
+  function step(held, pressed = false) {
     if (p.dead || p.won) return;
     const dt = CONFIG.DT;
     const near = nearby(p.x);
+    let event = null;
 
-    if (p.grounded && jump) {
-      p.vy = CONFIG.JUMP_V;
-      p.grounded = false;
+    if (p.grounded) {
+      p.airJumped = false;
+      if (held || pressed) {
+        p.vy = CONFIG.JUMP_V;
+        p.grounded = false;
+      }
+    } else if (pressed && !p.airJumped && p.airJumps > 0) {
+      p.vy = CONFIG.AIR_JUMP_V;
+      p.airJumps--;
+      p.airJumped = true;
+      event = 'air';
     }
 
     // Horizontal: run into a block's side = death, unless only its top edge was clipped.
@@ -83,6 +97,7 @@ function createSim(level) {
     }
 
     if (p.x >= end) p.won = true;
+    return event;
   }
 
   return { p, end, step };
@@ -93,6 +108,7 @@ const Game = {
   sim: null,
   attempts: 0,
   jumpHeld: false,
+  jumpPressed: false,   // set on a fresh key press / tap, consumed by the next physics step
   angle: 0,
   camX: 0,
   camY: 0,
@@ -108,6 +124,7 @@ const Game = {
     this.level = level;
     this.attempts = 0;
     this.jumpHeld = false;
+    this.jumpPressed = false;
     this.restart();
   },
 
@@ -120,8 +137,9 @@ const Game = {
     this.deathTimer = 0;
     this.finished = false;
     this.particles = [];
+    this.jumpPressed = false;
     this.updateCamera(1);
-    this.onHud(this.attempts, 0);
+    this.onHud(this.attempts, 0, CONFIG.AIR_JUMPS);
   },
 
   progress() {
@@ -149,7 +167,9 @@ const Game = {
     this.acc += Math.min(dt, 0.1);
     while (this.acc >= CONFIG.DT) {
       this.acc -= CONFIG.DT;
-      this.sim.step(this.jumpHeld);
+      const event = this.sim.step(this.jumpHeld, this.jumpPressed);
+      this.jumpPressed = false;
+      if (event === 'air') this.airBurst(p.x + 0.5, p.y + 0.5);
       if (p.dead) {
         this.explode(p.x + 0.5, p.y + 0.5);
         this.deathTimer = 0.8;
@@ -174,7 +194,7 @@ const Game = {
     }
 
     this.updateCamera(dt);
-    this.onHud(this.attempts, this.progress());
+    this.onHud(this.attempts, this.progress(), p.airJumps);
   },
 
   updateCamera(dt) {
@@ -194,6 +214,16 @@ const Game = {
         x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
         life: 0.7, max: 0.7, size: 0.1 + Math.random() * 0.2,
         color: Math.random() < 0.5 ? '#ffd23f' : '#3ee0ff',
+      });
+    }
+  },
+
+  airBurst(x, y) {
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      this.particles.push({
+        x, y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
+        life: 0.35, max: 0.35, size: 0.14, color: '#ffffff',
       });
     }
   },

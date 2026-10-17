@@ -11,6 +11,8 @@ const CONFIG = {
   SPEED: 10.4,          // horizontal speed, cells / second
   GRAVITY: 88,          // cells / second^2
   JUMP_V: 19.6,         // initial jump velocity -> ~2.2 cells high, ~4.5 cells long
+  AIR_JUMPS: 3,         // double jumps (tap again in mid-air) allowed per attempt
+  AIR_JUMP_V: 17,       // velocity of a double jump -> ~1.6 cells extra height
   MAX_FALL: 30,
   STEP_UP: 0.25,        // how far below a block's top you can clip it and still land
   DT: 1 / 240,          // fixed physics step

@@ -68,6 +68,7 @@
         <div class="hud-row">
           <span id="attempt">Attempt 1</span>
           <span id="percent">0%</span>
+          <span title="Double jumps left — tap again in mid-air">2× <span id="airJumps"></span></span>
           <button id="stopBtn" title="Back to editor (Esc)">✎ Edit</button>
         </div>
       </div>
@@ -84,7 +85,7 @@
       </div>
 
       <div id="scrollbar"><input id="scroll" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scroll level"></div>
-      <div id="hint">Click to place · Right-click to erase · Scroll wheel / arrows to move · Space to jump while playing</div>
+      <div id="hint">Click to place · Right-click to erase · Scroll wheel / arrows to move · Space to jump · tap again in mid-air to double jump (3 per attempt)</div>
       <div id="toast" hidden></div>
     </main>
   </div>

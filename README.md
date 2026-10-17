@@ -22,6 +22,9 @@ Plain HTML/CSS/JavaScript: no build step and no dependencies, so it runs as-is o
 ## Play
 
 The cube runs on its own. Press `Space`, `↑`, `W`, click or tap to jump. Hold the key to keep jumping as soon as you land.
+
+**Double jump:** press or tap again while in the air to jump a second time, which takes you to about 3.7 cells high,
+enough to clear a 3-block wall. You get **3 double jumps per attempt** (shown as ●●● in the top bar), and they refill each time you restart.
 `Esc` returns to the editor.
 
 ## Save & share

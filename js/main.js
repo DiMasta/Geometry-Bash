@@ -174,6 +174,7 @@
     $('hud').hidden = false;
     $('winScreen').hidden = true;
     canvas.classList.add('playing');
+    $('toast').hidden = true;
     Editor.stroke = null;
     Game.start(sanitizeLevel(Editor.level));
   }
@@ -188,8 +189,9 @@
     syncScroll();
   }
 
-  Game.onHud = (attempts, progress) => {
+  Game.onHud = (attempts, progress, airJumps) => {
     $('attempt').textContent = `Attempt ${attempts}`;
+    $('airJumps').textContent = '●'.repeat(airJumps) + '○'.repeat(CONFIG.AIR_JUMPS - airJumps);
     const pct = Math.floor(progress * 100);
     $('percent').textContent = `${pct}%`;
     $('progressFill').style.width = `${pct}%`;
@@ -223,6 +225,7 @@
     canvas.setPointerCapture(e.pointerId);
     if (mode === 'play') {
       Game.jumpHeld = true;
+      Game.jumpPressed = true;
       return;
     }
     const [x, y] = localPos(e);
@@ -266,6 +269,7 @@
       if (JUMP_KEYS.includes(e.code)) {
         e.preventDefault();
         Game.jumpHeld = true;
+        if (!e.repeat) Game.jumpPressed = true;
       } else if (e.code === 'Escape') {
         stopPlay();
       } else if (e.code === 'KeyR' && !$('winScreen').hidden) {
