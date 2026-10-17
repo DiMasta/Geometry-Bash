@@ -69,7 +69,36 @@
     Editor.tool = tool;
     document.querySelectorAll('.tool').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
     canvas.classList.toggle('pan', tool === 'pan');
+    $('texturePalette').hidden = tool !== 'square';
   }
+
+  // ---------- Square textures ----------
+
+  function previewTile(v) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const view = { W: 64, H: 64, scale: 64, camX: 0, camY: 0, groundY: 64 };
+    drawShape(c.getContext('2d'), view, { t: 'square', x: 0, y: 0, s: 1, r: 0, v });
+    return c;
+  }
+
+  function setVariant(v) {
+    Editor.variant = v;
+    $('texturePalette').querySelectorAll('button').forEach((b, i) => {
+      b.classList.toggle('active', i === v);
+      b.setAttribute('aria-checked', String(i === v));
+    });
+  }
+
+  BLOCK_STYLE_NAMES.forEach((name, v) => {
+    const b = document.createElement('button');
+    b.title = `${name} block`;
+    b.setAttribute('role', 'radio');
+    b.appendChild(previewTile(v));
+    b.addEventListener('click', () => setVariant(v));
+    $('texturePalette').appendChild(b);
+  });
+  setVariant(0);
   document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 
   function setSize(size) {
@@ -118,9 +147,16 @@
     Editor.camX = Editor.homeX();
     Editor.setLevel(level);
     $('levelName').value = level.name;
+    $('doubleJumpToggle').checked = level.doubleJump;
     closeMenu();
     if (message) toast(message);
   }
+
+  $('doubleJumpToggle').addEventListener('change', (e) => {
+    Editor.level.doubleJump = e.target.checked;
+    storageSet(STORAGE_CURRENT, Editor.level);
+    toast(e.target.checked ? 'Double jump on for this level' : 'Double jump off');
+  });
 
   // ---------- Saved levels ----------
 
@@ -245,6 +281,7 @@
     $('resultAttempt').textContent = stats.attempts;
     $('resultTime').textContent = `${stats.time.toFixed(1)}s`;
     $('resultAir').textContent = stats.airJumps;
+    $('resultAirRow').hidden = !Game.level.doubleJump;
     $('newBest').hidden = !stats.newBest;
     $('retryBtn').hidden = kind === 'win';
     $('newGameBtn').classList.toggle('play', kind === 'win');
@@ -274,6 +311,7 @@
 
   Game.onHud = (attempts, progress, airJumps) => {
     $('attempt').textContent = `Attempt ${attempts}`;
+    $('airJumpsHud').hidden = !Game.level.doubleJump;
     $('airJumps').textContent = '●'.repeat(airJumps) + '○'.repeat(CONFIG.AIR_JUMPS - airJumps);
     const pct = Math.floor(progress * 100);
     $('percent').textContent = `${pct}%`;

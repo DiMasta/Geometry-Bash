@@ -7,7 +7,7 @@ Plain HTML/CSS/JavaScript: no build step and no dependencies, so it runs as-is o
 
 | Shape | What it does |
 | --- | --- |
-| ◼ **Square** | Solid block. Land on top of it; running into its side or hitting its underside kills you. |
+| ◼ **Square** | Solid block. Land on top of it; running into its side or hitting its underside kills you. Comes in 9 textures: Night, Brick, Crate, Stone, Metal, Grass, Ice, Neon and Candy (pick one from the palette at the bottom of the level while the Square tool is selected). |
 | ▲ **Triangle** | Spike. Deadly. Rotate it (Up / Right / Down / Left) to make floor, wall or ceiling spikes. |
 | ● **Circle** | Spinning saw. Deadly. |
 
@@ -25,8 +25,9 @@ Plain HTML/CSS/JavaScript: no build step and no dependencies, so it runs as-is o
 
 The cube runs on its own. Press `Space`, `↑`, `W`, click or tap to jump. Hold the key to keep jumping as soon as you land.
 
-**Double jump:** press or tap again while in the air to jump a second time, which takes you to about 3.7 cells high,
-enough to clear a 3-block wall. You get **3 double jumps per attempt** (shown as ●●● in the top bar), and they refill each time you restart.
+**Double jump** (off by default; turn it on per level with *Allow double jump* in the ☰ menu): press or tap again while in
+the air to jump a second time, which takes you to about 3.7 cells high, enough to clear a 3-block wall. You get **3 double jumps per
+attempt** (shown as ●●● in the top bar), and they refill each time you restart. The setting is saved with the level and in share links.
 `Esc` returns to the editor.
 
 When you crash, the result screen shows your **score** (how far you got, in %), your **best** score on that level
@@ -58,6 +59,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
 3. Choose branch **`main`** and folder **`/ (root)`**, then click **Save**.
 
 After a minute the game is live at `https://<user>.github.io/<repo>/`.
+
+## Background
+
+The background is a photo of the creators (`assets/creators.jpg`), tiled with a frame around each copy, aspect ratio kept,
+and dimmed with a blue wash. To use a different photo, replace that file.
 
 ## Code layout
 

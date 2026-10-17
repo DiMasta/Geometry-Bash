@@ -21,7 +21,7 @@ function createSim(level) {
 
   const p = {
     x: CONFIG.START_X, y: 0, vy: 0, grounded: true, dead: false, won: false,
-    airJumps: CONFIG.AIR_JUMPS, airJumped: false,
+    airJumps: level.doubleJump ? CONFIG.AIR_JUMPS : 0, airJumped: false,
   };
   const end = levelEnd(level);
 

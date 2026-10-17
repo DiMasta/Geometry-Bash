@@ -48,6 +48,10 @@
             <button id="saveBtn" title="Save to this browser">Save</button>
           </div>
         </div>
+        <label class="toggle">
+          <input type="checkbox" id="doubleJumpToggle">
+          <span>Allow double jump<small>Tap again in mid-air · 3 per attempt</small></span>
+        </label>
         <div class="field">
           <span>Saved levels</span>
           <div class="row">
@@ -65,7 +69,8 @@
         <p class="help">
           Click / tap to place · drag to paint · right-click or Erase to remove.<br>
           Keys: 1–3 shapes · E erase · H pan · R rotate · [ ] size · Ctrl+Z undo · P play.<br>
-          Playing: Space / tap to jump, tap again in mid-air to double jump (3 per attempt).
+          With the Square tool selected, pick a block texture at the bottom of the level.<br>
+          Playing: Space / tap to jump (double jump if enabled above).
         </p>
       </div>
     </header>
@@ -78,7 +83,7 @@
         <div class="hud-row">
           <span id="attempt">Attempt 1</span>
           <span id="percent">0%</span>
-          <span title="Double jumps left — tap again in mid-air">2× <span id="airJumps"></span></span>
+          <span id="airJumpsHud" title="Double jumps left — tap again in mid-air">2× <span id="airJumps"></span></span>
           <button id="stopBtn" title="Back to editor (Esc)">✎ Edit</button>
         </div>
       </div>
@@ -92,7 +97,7 @@
             <div><dt>Best</dt><dd id="resultBest">0%</dd></div>
             <div><dt>Attempt</dt><dd id="resultAttempt">1</dd></div>
             <div><dt>Time</dt><dd id="resultTime">0.0s</dd></div>
-            <div><dt>Double jumps left</dt><dd id="resultAir">3</dd></div>
+            <div id="resultAirRow"><dt>Double jumps left</dt><dd id="resultAir">3</dd></div>
           </dl>
           <div class="row">
             <button id="retryBtn" class="play">↻ Retry</button>
@@ -103,6 +108,7 @@
         </div>
       </div>
 
+      <div id="texturePalette" role="radiogroup" aria-label="Square texture"></div>
       <div id="toast" hidden></div>
     </main>
 

@@ -5,6 +5,7 @@ const Editor = {
   tool: 'square',     // square | triangle | circle | eraser | pan
   size: 1,
   rot: 0,
+  variant: 0,         // square texture, index into BLOCK_STYLE_NAMES
   camX: CONFIG.START_X - 1,
   view: null,
   hover: null,        // { x, y } world position of the pointer
@@ -77,10 +78,14 @@ const Editor = {
   placeAt(wx, wy) {
     const c = this.cellFor(wx, wy);
     if (!c.valid) return false;
-    const obj = { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.tool === 'triangle' ? this.rot : 0 };
+    const obj = {
+      t: this.tool, x: c.x, y: c.y, s: c.s,
+      r: this.tool === 'triangle' ? this.rot : 0,
+      v: this.tool === 'square' ? this.variant : 0,
+    };
     const box = shapeBox(obj);
     const same = this.level.objects.find(o =>
-      o.t === obj.t && o.x === obj.x && o.y === obj.y && o.s === obj.s && o.r === obj.r);
+      o.t === obj.t && o.x === obj.x && o.y === obj.y && o.s === obj.s && o.r === obj.r && o.v === obj.v);
     if (same) return false;
     this.level.objects = this.level.objects.filter(o => !boxesOverlap(shapeBox(o), box, 0.01));
     this.level.objects.push(obj);
@@ -157,7 +162,7 @@ const Editor = {
     const topY = sy(v, CONFIG.MAX_Y + 1), groundY = sy(v, 0);
     ctx.lineWidth = 1;
     for (let x = x0; x <= x1; x++) {
-      ctx.strokeStyle = x % 5 === 0 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)';
+      ctx.strokeStyle = x % 5 === 0 ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.12)';
       ctx.beginPath();
       ctx.moveTo(sx(v, x) + 0.5, topY);
       ctx.lineTo(sx(v, x) + 0.5, groundY);
@@ -165,7 +170,7 @@ const Editor = {
     }
     const gx0 = sx(v, x0), gx1 = sx(v, x1);
     for (let y = 1; y <= CONFIG.MAX_Y + 1; y++) {
-      ctx.strokeStyle = y === CONFIG.MAX_Y + 1 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.07)';
+      ctx.strokeStyle = y === CONFIG.MAX_Y + 1 ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)';
       ctx.beginPath();
       ctx.moveTo(gx0, sy(v, y) + 0.5);
       ctx.lineTo(gx1, sy(v, y) + 0.5);
@@ -213,6 +218,6 @@ const Editor = {
     if (!c.valid) return;
     ctx.fillStyle = 'rgba(255,210,63,0.15)';
     ctx.fillRect(sx(v, c.x), sy(v, c.y + c.s), c.s * v.scale, c.s * v.scale);
-    drawShape(ctx, v, { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.rot }, time, 0.5);
+    drawShape(ctx, v, { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.rot, v: this.variant }, time, 0.6);
   },
 };

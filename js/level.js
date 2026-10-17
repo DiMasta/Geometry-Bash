@@ -4,8 +4,9 @@ const STORAGE_CURRENT = 'geometryBash.current';
 const STORAGE_LEVELS = 'geometryBash.levels';
 const STORAGE_BEST = 'geometryBash.best';
 
+// doubleJump: lets players tap again in mid-air (CONFIG.AIR_JUMPS per attempt). Off by default.
 function newLevel(name = 'My Level') {
-  return { name, objects: [] };
+  return { name, doubleJump: false, objects: [] };
 }
 
 function levelEnd(level) {
@@ -23,11 +24,14 @@ function sanitizeObject(raw) {
   const y = Math.round(Number(raw.y));
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || y + s > CONFIG.MAX_Y + 1) return null;
   const r = t === 'triangle' ? ((Math.round(Number(raw.r) || 0) % 4) + 4) % 4 : 0;
-  return { t, x, y, s, r };
+  const style = Math.round(Number(raw.v) || 0);
+  const v = t === 'square' && style > 0 && style < BLOCK_STYLE_NAMES.length ? style : 0;
+  return { t, x, y, s, r, v };
 }
 
 function sanitizeLevel(raw) {
   const level = newLevel(typeof raw?.name === 'string' ? raw.name.slice(0, 40) : 'My Level');
+  level.doubleJump = raw?.doubleJump === true;
   if (Array.isArray(raw?.objects)) {
     for (const o of raw.objects) {
       const clean = sanitizeObject(o);
@@ -37,11 +41,12 @@ function sanitizeLevel(raw) {
   return level;
 }
 
-// Compact form: { n: name, o: [[type, x, y, size, rot], ...] }
+// Compact form: { n: name, d: double jump 0/1, o: [[type, x, y, size, rot, texture], ...] }
 function encodeLevel(level) {
   const compact = {
     n: level.name,
-    o: level.objects.map(o => [SHAPE_TYPES.indexOf(o.t), o.x, o.y, o.s, o.r]),
+    d: level.doubleJump ? 1 : 0,
+    o: level.objects.map(o => [SHAPE_TYPES.indexOf(o.t), o.x, o.y, o.s, o.r, o.v]),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(compact));
   let bin = '';
@@ -56,7 +61,8 @@ function decodeLevel(code) {
   const compact = JSON.parse(new TextDecoder().decode(bytes));
   return sanitizeLevel({
     name: compact.n,
-    objects: (compact.o || []).map(([t, x, y, s, r]) => ({ t, x, y, s, r })),
+    doubleJump: compact.d === 1,
+    objects: (compact.o || []).map(([t, x, y, s, r, v]) => ({ t, x, y, s, r, v })),
   });
 }
 
@@ -108,7 +114,9 @@ function deleteSavedLevel(name) {
 // ---------- Best scores, keyed by level layout (renaming keeps the record) ----------
 
 function levelId(level) {
-  const text = JSON.stringify(level.objects.map(o => [o.t, o.x, o.y, o.s, o.r]).sort());
+  // Textures are cosmetic and don't count; double jump changes the challenge, so it does.
+  let text = JSON.stringify(level.objects.map(o => [o.t, o.x, o.y, o.s, o.r]).sort());
+  if (level.doubleJump) text += '|double-jump';
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
   return h.toString(36);
@@ -150,5 +158,8 @@ function demoLevel() {
   add('triangle', 80, 0);
   add('circle', 86, 0);
   add('triangle', 92, 0); add('triangle', 93, 0);
+  // Show off a few block textures
+  const textureAt = (x) => (x < 31 ? 1 : x < 49 ? 2 : x < 62 ? 3 : x < 70 ? 5 : 4);
+  for (const o of level.objects) o.v = o.t === 'square' ? textureAt(o.x) : 0;
   return level;
 }

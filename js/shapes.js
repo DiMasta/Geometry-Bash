@@ -4,6 +4,8 @@
 
 const SHAPE_TYPES = ['square', 'triangle', 'circle'];
 const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
+// Square textures (o.v). Index 0 is the classic dark block.
+const BLOCK_STYLE_NAMES = ['Night', 'Brick', 'Crate', 'Stone', 'Metal', 'Grass', 'Ice', 'Neon', 'Candy'];
 
 function shapeBox(o) {
   return { x: o.x, y: o.y, w: o.s, h: o.s };
