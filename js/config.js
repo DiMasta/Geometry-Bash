@@ -14,6 +14,8 @@ const CONFIG = {
   JUMP_V: 19.6,         // initial jump velocity -> ~2.2 cells high, ~4.5 cells long
   AIR_JUMPS: 3,         // double jumps (tap again in mid-air) allowed per attempt
   AIR_JUMP_V: 17,       // velocity of a double jump -> ~1.6 cells extra height
+  BOOST_V: 23.8,        // jump boost launch -> ~3.2 cells high
+  CLOUD_DELAY: 0.35,    // seconds a cloud block holds you after you land on it
   MAX_FALL: 30,
   STEP_UP: 0.25,        // how far below a block's top you can clip it and still land
   DT: 1 / 240,          // fixed physics step

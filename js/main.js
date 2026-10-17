@@ -69,36 +69,57 @@
     Editor.tool = tool;
     document.querySelectorAll('.tool').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
     canvas.classList.toggle('pan', tool === 'pan');
-    $('texturePalette').hidden = tool !== 'square';
+    renderOptionsBar();
   }
 
-  // ---------- Square textures ----------
+  // ---------- Options bar: size, rotation and texture of the selected shape ----------
 
-  function previewTile(v) {
+  function previewTile(t, v) {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
-    const view = { W: 64, H: 64, scale: 64, camX: 0, camY: 0, groundY: 64 };
-    drawShape(c.getContext('2d'), view, { t: 'square', x: 0, y: 0, s: 1, r: 0, v });
+    const view = { W: 64, H: 64, scale: 56, camX: -4 / 56, camY: 0, groundY: 60 };
+    drawShape(c.getContext('2d'), view, { t, x: 0, y: 0, s: 1, r: 0, v }, 0.3);
     return c;
   }
 
+  function renderOptionsBar() {
+    const tool = Editor.tool;
+    $('optionsBar').hidden = !SHAPE_TOOLS.includes(tool);
+    $('rotateBtn').hidden = tool !== 'triangle';
+    const sw = $('swatches');
+    sw.innerHTML = '';
+    const names = STYLE_NAMES[tool] || [];
+    if (names.length < 2) return;
+    names.forEach((name, v) => {
+      const b = document.createElement('button');
+      b.title = name;
+      b.setAttribute('role', 'radio');
+      b.appendChild(previewTile(tool, v));
+      b.addEventListener('click', () => setVariant(v));
+      sw.appendChild(b);
+    });
+    setVariant(Editor.variants[tool] || 0);
+  }
+
   function setVariant(v) {
-    Editor.variant = v;
-    $('texturePalette').querySelectorAll('button').forEach((b, i) => {
+    Editor.variants[Editor.tool] = v;
+    $('swatches').querySelectorAll('button').forEach((b, i) => {
       b.classList.toggle('active', i === v);
       b.setAttribute('aria-checked', String(i === v));
     });
   }
 
-  BLOCK_STYLE_NAMES.forEach((name, v) => {
-    const b = document.createElement('button');
-    b.title = `${name} block`;
-    b.setAttribute('role', 'radio');
-    b.appendChild(previewTile(v));
-    b.addEventListener('click', () => setVariant(v));
-    $('texturePalette').appendChild(b);
-  });
-  setVariant(0);
+  // ---------- Test start ----------
+
+  Editor.onTestStart = () => {
+    const t = Editor.testStart;
+    $('testChip').hidden = !t;
+    if (t) $('testCol').textContent = t.x;
+    $('playBtn').title = t ? `Test from column ${t.x} (P / Enter)` : 'Play this level (P / Enter)';
+    $('playBtn').querySelector('.lbl-play').textContent = t ? ' Test' : ' Play';
+  };
+  $('testChip').addEventListener('click', () => Editor.clearTestStart());
+  renderOptionsBar();
   document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 
   function setSize(size) {
@@ -109,7 +130,7 @@
 
   function rotate() {
     Editor.rot = (Editor.rot + 1) % 4;
-    $('rotLabel').textContent = ROT_NAMES[Editor.rot];
+    $('rotateBtn').title = `Rotate triangle (R) — pointing ${ROT_NAMES[Editor.rot]}`;
     $('rotIcon').style.transform = `rotate(${Editor.rot * 90}deg)`;
     if (Editor.tool !== 'triangle') setTool('triangle');
   }
@@ -249,7 +270,7 @@
     canvas.classList.add('playing');
     $('toast').hidden = true;
     Editor.stroke = null;
-    Game.start(sanitizeLevel(Editor.level));
+    Game.start(sanitizeLevel(Editor.level), Editor.testStart);
   }
 
   function stopPlay() {
@@ -276,6 +297,7 @@
     $('resultTitle').textContent = kind === 'win'
       ? (stats.attempts === 1 ? 'Flawless!' : 'Level Complete!')
       : 'Crashed!';
+    if (stats.testing) $('resultTitle').textContent += ' (test run)';
     $('resultScore').textContent = `${stats.score}%`;
     $('resultBest').textContent = `${stats.best}%`;
     $('resultAttempt').textContent = stats.attempts;
@@ -310,7 +332,7 @@
   Game.onResult = showResult;
 
   Game.onHud = (attempts, progress, airJumps) => {
-    $('attempt').textContent = `Attempt ${attempts}`;
+    $('attempt').textContent = Game.startPos ? `Test · Attempt ${attempts}` : `Attempt ${attempts}`;
     $('airJumpsHud').hidden = !Game.level.doubleJump;
     $('airJumps').textContent = '●'.repeat(airJumps) + '○'.repeat(CONFIG.AIR_JUMPS - airJumps);
     const pct = Math.floor(progress * 100);
@@ -432,6 +454,8 @@
       case 'Digit1': setTool('square'); break;
       case 'Digit2': setTool('triangle'); break;
       case 'Digit3': setTool('circle'); break;
+      case 'Digit4': setTool('boost'); break;
+      case 'KeyF': setTool('flag'); break;
       case 'KeyE': setTool('eraser'); break;
       case 'KeyH': setTool('pan'); break;
       case 'KeyR': rotate(); break;

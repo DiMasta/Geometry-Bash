@@ -1,11 +1,15 @@
-// Level editor: place / erase shapes on a grid, scroll, undo.
+// Level editor: place / erase shapes on a grid, scroll, undo, pick a test start.
+
+const SHAPE_TOOLS = ['square', 'triangle', 'circle', 'boost'];
 
 const Editor = {
   level: newLevel(),
-  tool: 'square',     // square | triangle | circle | eraser | pan
+  tool: 'square',     // square | triangle | circle | boost | eraser | pan | flag
   size: 1,
   rot: 0,
-  variant: 0,         // square texture, index into BLOCK_STYLE_NAMES
+  variants: { square: 0, triangle: 0, circle: 0, boost: 0 },   // chosen texture per shape
+  testStart: null,    // { x, y }: Play starts here instead of the level start (editor only)
+  onTestStart: () => {},
   camX: CONFIG.START_X - 1,
   view: null,
   hover: null,        // { x, y } world position of the pointer
@@ -67,7 +71,7 @@ const Editor = {
   },
 
   cellFor(wx, wy) {
-    const s = this.tool === 'square' || this.tool === 'triangle' || this.tool === 'circle' ? this.size : 1;
+    const s = SHAPE_TOOLS.includes(this.tool) ? this.size : 1;
     // Centre multi-cell shapes on the pointer
     let x = Math.floor(wx - (s - 1) / 2);
     let y = Math.floor(wy - (s - 1) / 2);
@@ -81,7 +85,7 @@ const Editor = {
     const obj = {
       t: this.tool, x: c.x, y: c.y, s: c.s,
       r: this.tool === 'triangle' ? this.rot : 0,
-      v: this.tool === 'square' ? this.variant : 0,
+      v: this.variants[this.tool] || 0,
     };
     const box = shapeBox(obj);
     const same = this.level.objects.find(o =>
@@ -92,7 +96,30 @@ const Editor = {
     return true;
   },
 
+  // Test start: tap a cell to start test runs there; tap it again to go back to the normal start.
+  // A start inside a block moves up to the first free cell.
+  setTestStart(wx, wy) {
+    const c = this.cellFor(wx, wy);
+    if (!c.valid) return;
+    let y = c.y;
+    const blocked = (yy) => this.level.objects.some(o => o.t === 'square' && pointInBox(c.x + 0.5, yy + 0.5, shapeBox(o)));
+    while (y < CONFIG.MAX_Y && blocked(y)) y++;
+    const same = this.testStart && this.testStart.x === c.x && this.testStart.y === y;
+    this.testStart = same ? null : { x: c.x, y };
+    this.onTestStart();
+  },
+
+  clearTestStart() {
+    this.testStart = null;
+    this.onTestStart();
+  },
+
   eraseAt(wx, wy) {
+    const t = this.testStart;
+    if (t && pointInBox(wx, wy, { x: t.x, y: t.y, w: 1, h: 1 })) {
+      this.clearTestStart();
+      return false;
+    }
     const before = this.level.objects.length;
     this.level.objects = this.level.objects.filter(o => !pointInBox(wx, wy, shapeBox(o)));
     return this.level.objects.length !== before;
@@ -102,6 +129,10 @@ const Editor = {
 
   pointerDown(px, py, button) {
     const w = screenToWorld(this.view, px, py);
+    if (this.tool === 'flag' && button === 0) {
+      this.setTestStart(w.x, w.y);
+      return;
+    }
     let mode;
     if (button === 1 || this.tool === 'pan') mode = 'pan';
     else if (button === 2 || this.tool === 'eraser') mode = 'erase';
@@ -199,6 +230,22 @@ const Editor = {
       drawShape(ctx, v, o, time);
     }
 
+    if (this.testStart) {
+      const t = this.testStart;
+      drawPlayer(ctx, v, t.x, t.y, 0, 0.8);
+      // Flag above the cube
+      const fx = sx(v, t.x + 0.5), fy = sy(v, t.y + 1);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - v.scale * 0.8); ctx.stroke();
+      ctx.fillStyle = '#3ddc84';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy - v.scale * 0.8);
+      ctx.lineTo(fx + v.scale * 0.45, fy - v.scale * 0.65);
+      ctx.lineTo(fx, fy - v.scale * 0.5);
+      ctx.fill();
+    }
+
     this.drawHover(ctx, v, time);
   },
 
@@ -218,6 +265,10 @@ const Editor = {
     if (!c.valid) return;
     ctx.fillStyle = 'rgba(255,210,63,0.15)';
     ctx.fillRect(sx(v, c.x), sy(v, c.y + c.s), c.s * v.scale, c.s * v.scale);
-    drawShape(ctx, v, { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.rot, v: this.variant }, time, 0.6);
+    if (this.tool === 'flag') {
+      drawPlayer(ctx, v, c.x, c.y, 0, 0.45);
+      return;
+    }
+    drawShape(ctx, v, { t: this.tool, x: c.x, y: c.y, s: c.s, r: this.rot, v: this.variants[this.tool] || 0 }, time, 0.6);
   },
 };

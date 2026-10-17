@@ -25,7 +25,7 @@ function sanitizeObject(raw) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || y + s > CONFIG.MAX_Y + 1) return null;
   const r = t === 'triangle' ? ((Math.round(Number(raw.r) || 0) % 4) + 4) % 4 : 0;
   const style = Math.round(Number(raw.v) || 0);
-  const v = t === 'square' && style > 0 && style < BLOCK_STYLE_NAMES.length ? style : 0;
+  const v = style > 0 && style < STYLE_NAMES[t].length ? style : 0;
   return { t, x, y, s, r, v };
 }
 
@@ -115,7 +115,9 @@ function deleteSavedLevel(name) {
 
 function levelId(level) {
   // Textures are cosmetic and don't count; double jump changes the challenge, so it does.
-  let text = JSON.stringify(level.objects.map(o => [o.t, o.x, o.y, o.s, o.r]).sort());
+  // (Cloud blocks behave differently, so they count.)
+  let text = JSON.stringify(level.objects.map(o =>
+    (o.t === 'square' && o.v === CLOUD_STYLE ? [o.t, o.x, o.y, o.s, o.r, 'cloud'] : [o.t, o.x, o.y, o.s, o.r])).sort());
   if (level.doubleJump) text += '|double-jump';
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
@@ -161,5 +163,12 @@ function demoLevel() {
   // Show off a few block textures
   const textureAt = (x) => (x < 31 ? 1 : x < 49 ? 2 : x < 62 ? 3 : x < 70 ? 5 : 4);
   for (const o of level.objects) o.v = o.t === 'square' ? textureAt(o.x) : 0;
+
+  // Finale: a jump boost up to a metal ledge, then cloud blocks that vanish under you
+  add('boost', 98, 0);
+  for (let x = 100; x <= 108; x++) add('triangle', x, 0);
+  for (const x of [101, 102, 103]) level.objects.push({ t: 'square', x, y: 2, s: 1, r: 0, v: 4 });
+  for (const x of [105, 106, 107, 108]) level.objects.push({ t: 'square', x, y: 2, s: 1, r: 0, v: CLOUD_STYLE });
+  for (const o of level.objects) o.v = o.v || 0;
   return level;
 }

@@ -1,7 +1,8 @@
 // Play mode: auto-running cube, jumping, collisions, death / restart, finish.
 
 // Pure physics simulation (no drawing), so it can also be tested headless.
-function createSim(level) {
+// start: optional { x, y } to begin mid-level (editor test runs).
+function createSim(level, start = null) {
   const columns = new Map();   // integer x -> shapes covering that column
   for (const o of level.objects) {
     for (let c = o.x; c < o.x + o.s; c++) {
@@ -20,16 +21,31 @@ function createSim(level) {
   };
 
   const p = {
-    x: CONFIG.START_X, y: 0, vy: 0, grounded: true, dead: false, won: false,
+    x: start ? start.x : CONFIG.START_X, y: start ? start.y : 0,
+    vy: 0, grounded: !start || start.y === 0, dead: false, won: false,
     airJumps: level.doubleJump ? CONFIG.AIR_JUMPS : 0, airJumped: false,
   };
   const end = levelEnd(level);
+  let time = 0;
+
+  // Cloud blocks vanish CLOUD_DELAY seconds after the first landing on them.
+  const vanishAt = new Map();
+  const gone = (o) => vanishAt.has(o) && time >= vanishAt.get(o);
+  const solid = (o) => o.t === 'square' && !gone(o);
+  const touchCloud = (o) => {
+    if (o.v === CLOUD_STYLE && !vanishAt.has(o)) vanishAt.set(o, time + CONFIG.CLOUD_DELAY);
+  };
+  // 1 = solid, fading to 0 while it disappears.
+  const cloudAlpha = (o) => (vanishAt.has(o) ? Math.max(0, (vanishAt.get(o) - time) / CONFIG.CLOUD_DELAY) : 1);
+
+  let boosting = new Set();   // boosts the player is currently inside (each fires once per touch)
 
   // held: jump input is down (auto-jumps on landing); pressed: a new tap this step (double jump).
-  // Returns 'air' when a double jump was used.
+  // Returns 'air' when a double jump was used, 'boost' when a jump boost fired.
   function step(held, pressed = false) {
     if (p.dead || p.won) return;
     const dt = CONFIG.DT;
+    time += dt;
     const near = nearby(p.x);
     let event = null;
 
@@ -49,13 +65,16 @@ function createSim(level) {
     // Horizontal: run into a block's side = death, unless only its top edge was clipped.
     p.x += CONFIG.SPEED * dt;
     for (const o of near) {
-      if (o.t !== 'square') continue;
+      if (!solid(o)) continue;
       const b = shapeBox(o);
       if (!boxesOverlap({ x: p.x, y: p.y, w: 1, h: 1 }, b, 1e-6)) continue;
       const top = b.y + b.h;
       if (top - p.y <= CONFIG.STEP_UP) {
         p.y = top;
-        if (p.vy < 0) p.vy = 0;
+        if (p.vy < 0) {
+          p.vy = 0;
+          touchCloud(o);
+        }
       } else {
         p.dead = true;
         return;
@@ -72,7 +91,7 @@ function createSim(level) {
       p.grounded = true;
     }
     for (const o of near) {
-      if (o.t !== 'square') continue;
+      if (!solid(o)) continue;
       const b = shapeBox(o);
       if (!boxesOverlap({ x: p.x, y: p.y, w: 1, h: 1 }, b, 1e-6)) continue;
       const top = b.y + b.h;
@@ -80,17 +99,29 @@ function createSim(level) {
         p.y = top;
         p.vy = 0;
         p.grounded = true;
+        touchCloud(o);
       } else {
         p.dead = true;
         return;
       }
     }
 
-    // Hazards (forgiving hitbox)
+    // Hazards and boosts (forgiving hitbox)
     const k = CONFIG.HAZARD_SHRINK;
     const hb = { x: p.x + k, y: p.y + k, w: 1 - 2 * k, h: 1 - 2 * k };
+    const touching = new Set();
     for (const o of near) {
-      if (o.t !== 'square' && hazardHits(o, hb)) {
+      if (o.t !== 'boost' || !boxesOverlap(hb, shapeBox(o))) continue;
+      touching.add(o);
+      if (!boosting.has(o)) {
+        p.vy = Math.max(p.vy, CONFIG.BOOST_V);
+        p.grounded = false;
+        event = 'boost';
+      }
+    }
+    boosting = touching;
+    for (const o of near) {
+      if ((o.t === 'triangle' || o.t === 'circle') && hazardHits(o, hb)) {
         p.dead = true;
         return;
       }
@@ -100,7 +131,7 @@ function createSim(level) {
     return event;
   }
 
-  return { p, end, step };
+  return { p, end, step, gone, cloudAlpha };
 }
 
 const Game = {
@@ -123,9 +154,10 @@ const Game = {
   onHud: () => {},
   onResult: () => {},   // (kind: 'dead' | 'win', stats)
 
-  // New game: attempt counter back to 1.
-  start(level) {
+  // New game: attempt counter back to 1. startPos ({ x, y }) = editor test run from that cell.
+  start(level, startPos = null) {
     this.level = level;
+    this.startPos = startPos;
     this.levelKey = levelId(level);
     this.best = loadBest(this.levelKey);
     this.attempts = 0;
@@ -135,7 +167,7 @@ const Game = {
   },
 
   restart() {
-    this.sim = createSim(this.level);
+    this.sim = createSim(this.level, this.startPos);
     this.attempts++;
     this.angle = 0;
     this.camY = 0;
@@ -175,6 +207,7 @@ const Game = {
       this.jumpPressed = false;
       this.steps++;
       if (event === 'air') this.airBurst(p.x + 0.5, p.y + 0.5);
+      if (event === 'boost') this.airBurst(p.x + 0.5, p.y + 0.2, '#ffd23f');
       if (p.dead) {
         this.explode(p.x + 0.5, p.y + 0.5);
         this.deathTimer = 0.8;
@@ -208,13 +241,14 @@ const Game = {
   finishAttempt() {
     const { p } = this.sim;
     const score = p.won ? 100 : Math.floor(this.progress() * 100);
-    const newBest = score > this.best;
+    const testing = !!this.startPos;   // test runs from the editor don't count for best
+    const newBest = !testing && score > this.best;
     if (newBest) {
       this.best = score;
       saveBest(this.levelKey, score);
     }
     return {
-      score, newBest,
+      score, newBest, testing,
       best: this.best,
       attempts: this.attempts,
       time: this.steps * CONFIG.DT,
@@ -243,12 +277,12 @@ const Game = {
     }
   },
 
-  airBurst(x, y) {
+  airBurst(x, y, color = '#ffffff') {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       this.particles.push({
         x, y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
-        life: 0.35, max: 0.35, size: 0.14, color: '#ffffff',
+        life: 0.35, max: 0.35, size: 0.14, color,
       });
     }
   },
@@ -273,7 +307,8 @@ const Game = {
 
     for (const o of this.level.objects) {
       if (sx(v, o.x + o.s) < 0 || sx(v, o.x) > W) continue;
-      drawShape(ctx, v, o, time);
+      const alpha = o.v === CLOUD_STYLE && o.t === 'square' ? this.sim.cloudAlpha(o) : 1;
+      if (alpha > 0) drawShape(ctx, v, o, time, alpha);
     }
 
     for (const q of this.particles) {
@@ -285,9 +320,5 @@ const Game = {
     ctx.globalAlpha = 1;
 
     if (!p.dead) drawPlayer(ctx, v, p.x, p.y, this.angle);
-    else {
-      ctx.fillStyle = `rgba(255,255,255,${Math.max(0, this.deathTimer - 0.6)})`;
-      ctx.fillRect(0, 0, W, H);
-    }
   },
 };

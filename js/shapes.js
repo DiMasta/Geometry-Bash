@@ -1,11 +1,16 @@
 // Shape geometry shared by the editor (placement, erasing) and the game (collisions).
-// A shape: { t: 'square' | 'triangle' | 'circle', x, y, s, r }
-//   x, y = bottom-left cell, s = size in cells, r = triangle rotation (0 up, 1 right, 2 down, 3 left)
+// A shape: { t: 'square' | 'triangle' | 'circle' | 'boost', x, y, s, r, v }
+//   x, y = bottom-left cell, s = size in cells, r = triangle rotation (0 up, 1 right, 2 down, 3 left),
+//   v = texture / variation (index into STYLE_NAMES[t])
 
-const SHAPE_TYPES = ['square', 'triangle', 'circle'];
+const SHAPE_TYPES = ['square', 'triangle', 'circle', 'boost'];   // order matters: share links store the index
 const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
-// Square textures (o.v). Index 0 is the classic dark block.
-const BLOCK_STYLE_NAMES = ['Night', 'Brick', 'Crate', 'Stone', 'Metal', 'Grass', 'Ice', 'Neon', 'Candy'];
+// Index 0 of each list is the classic look. Cloud blocks vanish after you land on them.
+const BLOCK_STYLE_NAMES = ['Night', 'Brick', 'Crate', 'Stone', 'Metal', 'Grass', 'Ice', 'Neon', 'Candy', 'Cloud'];
+const SPIKE_STYLE_NAMES = ['Night', 'Lava', 'Ice', 'Metal', 'Thorn', 'Gold', 'Neon', 'Candy', 'Crystal'];
+const SAW_STYLE_NAMES = ['Saw', 'Gear', 'Fireball', 'Spike ball', 'Ice saw', 'Neon', 'Peppermint', 'Gold saw'];
+const STYLE_NAMES = { square: BLOCK_STYLE_NAMES, triangle: SPIKE_STYLE_NAMES, circle: SAW_STYLE_NAMES, boost: ['Boost'] };
+const CLOUD_STYLE = BLOCK_STYLE_NAMES.indexOf('Cloud');
 
 function shapeBox(o) {
   return { x: o.x, y: o.y, w: o.s, h: o.s };

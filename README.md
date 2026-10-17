@@ -7,18 +7,21 @@ Plain HTML/CSS/JavaScript: no build step and no dependencies, so it runs as-is o
 
 | Shape | What it does |
 | --- | --- |
-| ◼ **Square** | Solid block. Land on top of it; running into its side or hitting its underside kills you. Comes in 9 textures: Night, Brick, Crate, Stone, Metal, Grass, Ice, Neon and Candy (pick one from the palette at the bottom of the level while the Square tool is selected). |
-| ▲ **Triangle** | Spike. Deadly. Rotate it (Up / Right / Down / Left) to make floor, wall or ceiling spikes. |
-| ● **Circle** | Spinning saw. Deadly. |
+| ◼ **Square** | Solid block. Land on top of it; running into its side or hitting its underside kills you. Textures: Night, Brick, Crate, Stone, Metal, Grass, Ice, Neon, Candy and **Cloud**. A cloud block vanishes a moment after you first land on it. |
+| ▲ **Triangle** | Spike. Deadly. Rotate it (Up / Right / Down / Left) to make floor, wall or ceiling spikes. Styles: Night, Lava, Ice, Metal, Thorn, Gold, Neon, Candy, Crystal. |
+| ● **Circle** | Deadly. Styles: Saw, Gear, Fireball, Spike ball, Ice saw, Neon, Peppermint, Gold saw. |
+| ⇑ **Boost** | Jump boost. Touch it and it launches you about 3 blocks up. |
 
-- Every shape comes in 1×, 2× or 3× size.
+- Every shape comes in 1×, 2× or 3× size. Size, rotation and texture are in the bar at the bottom of the level.
+- **🚩 Test from**: tap a cell, and ▶ then starts the run there so you can test the rest of the level without playing it from the
+  start. Tap the "Testing from column…" chip (or the flag again) to go back to the normal start. Test runs don't change your best score.
 - Left-click (or tap) places a shape, and you can drag to paint. Right-click or the **Erase** tool removes shapes.
 - Scroll the level with the mouse wheel, the arrow keys, the slider and ◀ ▶ buttons under the canvas, the **Pan** tool,
   or a two-finger drag on touch screens.
 - Saving, loading, sharing and clearing live in the **☰** menu.
 - The finish line moves automatically to 10 cells after your last shape.
 
-**Editor shortcuts:** `1` square · `2` triangle · `3` circle · `E` eraser · `H` pan · `R` rotate triangle ·
+**Editor shortcuts:** `1` square · `2` triangle · `3` circle · `4` boost · `F` test start · `E` eraser · `H` pan · `R` rotate triangle ·
 `[` / `]` size · `Ctrl+Z` undo · `P` or `Enter` play
 
 ## Play

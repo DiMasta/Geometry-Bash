@@ -125,59 +125,21 @@ function drawShape(ctx, v, o, time = 0, alpha = 1) {
     ctx.lineWidth = lw;
     ctx.strokeRect(x + lw / 2, y + lw / 2, w - lw, w - lw);
   } else if (o.t === 'triangle') {
-    const pts = trianglePoints(o).map(([x, y]) => [sx(v, x), sy(v, y)]);
-    const ys = pts.map(p => p[1]);
-    const g = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
-    g.addColorStop(0, '#2a1240');
-    g.addColorStop(1, '#05060f');
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.closePath();
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.shadowColor = '#ff4d6d';
-    ctx.shadowBlur = 8;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = lw;
-    ctx.stroke();
+    drawSpike(ctx, o, trianglePoints(o).map(([x, y]) => [sx(v, x), sy(v, y)]), lw);
   } else if (o.t === 'circle') {
-    const r = (o.s / 2) * s;
-    const cx = sx(v, o.x + o.s / 2), cy = sy(v, o.y + o.s / 2);
-    const teeth = 8 + o.s * 4;
-    ctx.translate(cx, cy);
-    ctx.rotate(time * 5);
-    ctx.beginPath();
-    for (let i = 0; i < teeth * 2; i++) {
-      const a = (i / (teeth * 2)) * Math.PI * 2;
-      const rr = i % 2 ? r * 0.8 : r * 0.98;
-      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#16182e';
-    ctx.shadowColor = '#ff4d6d';
-    ctx.shadowBlur = 10;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = lw * 0.8;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,77,109,0.8)';
-    ctx.lineWidth = lw;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.15, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+    ctx.translate(sx(v, o.x + o.s / 2), sy(v, o.y + o.s / 2));
+    drawSaw(ctx, o, (o.s / 2) * s, lw, time);
+  } else if (o.t === 'boost') {
+    drawBoost(ctx, sx(v, o.x), sy(v, o.y + o.s), o.s * s, lw, time);
   }
   ctx.restore();
 }
 
-function drawPlayer(ctx, v, x, y, angle) {
+function drawPlayer(ctx, v, x, y, angle, alpha = 1) {
   const s = v.scale;
   const cx = sx(v, x + 0.5), cy = sy(v, y + 0.5);
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.translate(cx, cy);
   ctx.rotate(angle);
   const h = s / 2;
@@ -364,6 +326,17 @@ const BLOCK_PAINTERS = {
   } },
 };
 
+BLOCK_PAINTERS.Cloud = { outline: null, paint(c) {
+  // Puffs reach the top of the cell so you visibly stand on the cloud
+  const puffs = [[16, 28, 15], [32, 21, 18], [48, 28, 15], [18, 44, 15], [46, 44, 15], [32, 40, 18]];
+  c.fillStyle = '#b9d4ef';
+  for (const [x, y, r] of puffs) { c.beginPath(); c.arc(x, y + 3, r, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = '#ffffff';
+  for (const [x, y, r] of puffs) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = 'rgba(255,255,255,0.9)';
+  c.fillRect(8, 28, 48, 18);
+} };
+
 const tileCache = new Map();
 
 // Canvas with one cell of block style v (top = the cell is on the block's top row).
@@ -395,7 +368,297 @@ function drawTexturedBlock(ctx, o, x, y, cell, lw) {
     }
   }
   ctx.restore();
+  if (!style.outline) return;
   ctx.strokeStyle = style.outline;
   ctx.lineWidth = lw * 0.8;
   ctx.strokeRect(x + lw * 0.4, y + lw * 0.4, w - lw * 0.8, w - lw * 0.8);
+}
+
+// ---------- Spikes (triangles) ----------
+
+const SPIKE_STYLES = {
+  Night: { stops: ['#2a1240', '#05060f'], outline: '#fff', glow: '#ff4d6d' },
+  Lava: { stops: ['#ffe066', '#ff7a1a', '#b3170a'], outline: '#ffd27a', glow: '#ff6a00', core: 'rgba(255,245,170,0.7)' },
+  Ice: { stops: ['#f2fdff', '#9fe3ff', '#3a9bd8'], outline: '#ffffff', glow: '#9fe3ff', shine: true },
+  Metal: { stops: ['#e9eef3', '#8a96a3', '#4b5560'], outline: '#f5f8fb', shine: true },
+  Thorn: { stops: ['#9be15d', '#3d8b2a', '#1f4d14'], outline: '#0f2a09', veins: true },
+  Gold: { stops: ['#fff6b0', '#ffcf33', '#b8860b'], outline: '#fff3b0', glow: '#ffd23f', shine: true },
+  Neon: { stops: ['#1a0838', '#0a0420'], outline: '#ff5cf4', glow: '#ff3df2', inner: '#3ee0ff' },
+  Candy: { candy: true, outline: '#ffffff', glow: '#ff5fa8' },
+  Crystal: { stops: ['#f3d9ff', '#b06bff', '#5a1fa8'], outline: '#f6e8ff', glow: '#c77dff', facets: true },
+};
+
+function polyPath(ctx, pts) {
+  ctx.beginPath();
+  pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+}
+
+// pts = screen corners: [base, base, tip]
+function drawSpike(ctx, o, pts, lw) {
+  const st = SPIKE_STYLES[SPIKE_STYLE_NAMES[o.v]] || SPIKE_STYLES.Night;
+  const [b0, b1, tip] = pts;
+  const mid = [(b0[0] + b1[0]) / 2, (b0[1] + b1[1]) / 2];
+
+  ctx.save();
+  polyPath(ctx, pts);
+  if (st.candy) {
+    ctx.clip();
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const size = Math.max(...xs) - Math.min(...xs);
+    ctx.drawImage(blockTile(BLOCK_STYLE_NAMES.indexOf('Candy')), Math.min(...xs), Math.min(...ys), size, size);
+  } else {
+    const g = ctx.createLinearGradient(tip[0], tip[1], mid[0], mid[1]);
+    st.stops.forEach((c, i) => g.addColorStop(i / (st.stops.length - 1), c));
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.clip();
+  }
+
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const line = (a, b, color, width) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+  };
+  if (st.core) {
+    ctx.fillStyle = st.core;
+    polyPath(ctx, [lerp(mid, b0, 0.45), lerp(mid, b1, 0.45), lerp(mid, tip, 0.6)]);
+    ctx.fill();
+  }
+  if (st.shine) line(lerp(tip, b0, 0.08), lerp(b0, mid, 0.55), 'rgba(255,255,255,0.7)', lw * 0.9);
+  if (st.veins) {
+    line(tip, mid, 'rgba(15,42,9,0.8)', lw * 0.6);
+    for (const t of [0.35, 0.6]) {
+      const p = lerp(tip, mid, t);
+      line(p, lerp(p, b0, 0.35), 'rgba(15,42,9,0.6)', lw * 0.4);
+      line(p, lerp(p, b1, 0.35), 'rgba(15,42,9,0.6)', lw * 0.4);
+    }
+  }
+  if (st.facets) {
+    const c = lerp(mid, tip, 0.33);
+    for (const p of [tip, b0, b1]) line(c, p, 'rgba(255,255,255,0.45)', lw * 0.5);
+  }
+  if (st.inner) {
+    ctx.shadowColor = st.inner;
+    ctx.shadowBlur = 8;
+    polyPath(ctx, scalePolygon(pts, 0.5));
+    ctx.strokeStyle = st.inner;
+    ctx.lineWidth = lw * 0.7;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  polyPath(ctx, pts);
+  if (st.glow) {
+    ctx.shadowColor = st.glow;
+    ctx.shadowBlur = 8;
+  }
+  ctx.strokeStyle = st.outline;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ---------- Saws (circles) ----------
+// Drawn around (0, 0); the caller has translated to the centre.
+
+function sawPath(ctx, r, teeth, inner = 0.8) {
+  ctx.beginPath();
+  for (let i = 0; i < teeth * 2; i++) {
+    const a = (i / (teeth * 2)) * Math.PI * 2;
+    const rr = i % 2 ? r * inner : r * 0.98;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+function ring(ctx, r, color, width) {
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+function dot(ctx, x, y, r, color) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// Classic-style toothed saw with a custom fill.
+function toothedSaw(ctx, o, r, lw, time, fill, outline, glow, hub) {
+  ctx.rotate(time * 5);
+  sawPath(ctx, r, 8 + o.s * 4);
+  ctx.fillStyle = fill;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
+  ring(ctx, r * 0.55, hub, lw);
+  dot(ctx, 0, 0, r * 0.15, '#fff');
+}
+
+const SAW_PAINTERS = {
+  Saw(ctx, o, r, lw, time) {
+    toothedSaw(ctx, o, r, lw, time, '#16182e', '#fff', '#ff4d6d', 'rgba(255,77,109,0.8)');
+  },
+
+  'Ice saw'(ctx, o, r, lw, time) {
+    const g = ctx.createLinearGradient(-r, -r, r, r);
+    g.addColorStop(0, '#effcff');
+    g.addColorStop(1, '#4aa8e0');
+    toothedSaw(ctx, o, r, lw, time, g, '#ffffff', '#9fe3ff', 'rgba(20,90,150,0.7)');
+  },
+
+  'Gold saw'(ctx, o, r, lw, time) {
+    const g = ctx.createLinearGradient(-r, -r, r, r);
+    g.addColorStop(0, '#fff6b0');
+    g.addColorStop(0.5, '#ffcf33');
+    g.addColorStop(1, '#9c6f00');
+    toothedSaw(ctx, o, r, lw, time, g, '#fff3b0', '#ffd23f', 'rgba(110,70,0,0.8)');
+  },
+
+  Gear(ctx, o, r, lw, time) {
+    ctx.rotate(time * 2);
+    const teeth = 6 + o.s * 2;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a = (i / teeth) * Math.PI * 2, w = Math.PI / teeth;
+      for (const [da, rr] of [[-w * 0.95, 0.78], [-w * 0.5, 0.98], [w * 0.5, 0.98], [w * 0.95, 0.78]]) {
+        ctx.lineTo(Math.cos(a + da) * r * rr, Math.sin(a + da) * r * rr);
+      }
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+    g.addColorStop(0, '#e8edf2');
+    g.addColorStop(1, '#5d6774');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = '#2b3138';
+    ctx.lineWidth = lw * 0.8;
+    ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      dot(ctx, Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, r * 0.11, '#2b3138');
+    }
+    dot(ctx, 0, 0, r * 0.22, '#1a1d22');
+    ring(ctx, r * 0.22, '#c9d1da', lw * 0.6);
+  },
+
+  Fireball(ctx, o, r, lw, time) {
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      const rr = r * (0.84 + 0.13 * Math.sin(a * 7 + time * 14) * Math.sin(a * 3 - time * 9));
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,90,20,0.85)';
+    ctx.shadowColor = '#ff6a00';
+    ctx.shadowBlur = 16;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.75);
+    g.addColorStop(0, '#fffbe0');
+    g.addColorStop(0.45, '#ffd23f');
+    g.addColorStop(1, '#ff7a1a');
+    dot(ctx, 0, 0, r * 0.72, g);
+  },
+
+  'Spike ball'(ctx, o, r, lw, time) {
+    ctx.rotate(time * 1.5);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2, w = 0.28;
+      polyPath(ctx, [
+        [Math.cos(a - w) * r * 0.5, Math.sin(a - w) * r * 0.5],
+        [Math.cos(a) * r * 0.99, Math.sin(a) * r * 0.99],
+        [Math.cos(a + w) * r * 0.5, Math.sin(a + w) * r * 0.5],
+      ]);
+      ctx.fillStyle = '#c9d1da';
+      ctx.fill();
+      ctx.strokeStyle = '#2b2f36';
+      ctx.lineWidth = lw * 0.5;
+      ctx.stroke();
+    }
+    const g = ctx.createRadialGradient(-r * 0.2, -r * 0.2, r * 0.05, 0, 0, r * 0.62);
+    g.addColorStop(0, '#7b8390');
+    g.addColorStop(1, '#1f2329');
+    dot(ctx, 0, 0, r * 0.6, g);
+    ring(ctx, r * 0.6, '#0d0f12', lw * 0.6);
+    dot(ctx, -r * 0.2, -r * 0.22, r * 0.12, 'rgba(255,255,255,0.45)');
+  },
+
+  Neon(ctx, o, r, lw, time) {
+    ctx.rotate(time * 3);
+    dot(ctx, 0, 0, r * 0.95, '#0d0623');
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#3ee0ff';
+    ctx.setLineDash([r * 0.35, r * 0.18]);
+    ring(ctx, r * 0.88, '#3ee0ff', lw);
+    ctx.setLineDash([]);
+    ctx.shadowColor = '#ff3df2';
+    ring(ctx, r * 0.55, '#ff5cf4', lw);
+    ctx.shadowBlur = 0;
+    dot(ctx, 0, 0, r * 0.18, '#ffffff');
+  },
+
+  Peppermint(ctx, o, r, lw, time) {
+    ctx.rotate(time * 3);
+    dot(ctx, 0, 0, r * 0.95, '#ffffff');
+    const n = 8;
+    for (let i = 0; i < n; i += 2) {
+      const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(Math.cos(a0 + 0.5) * r * 0.5, Math.sin(a0 + 0.5) * r * 0.5, Math.cos(a0) * r * 0.95, Math.sin(a0) * r * 0.95);
+      ctx.arc(0, 0, r * 0.95, a0, a1);
+      ctx.quadraticCurveTo(Math.cos(a1 + 0.5) * r * 0.5, Math.sin(a1 + 0.5) * r * 0.5, 0, 0);
+      ctx.fillStyle = '#e8243c';
+      ctx.fill();
+    }
+    ring(ctx, r * 0.95, '#b3122a', lw * 0.8);
+  },
+};
+
+function drawSaw(ctx, o, r, lw, time) {
+  (SAW_PAINTERS[SAW_STYLE_NAMES[o.v]] || SAW_PAINTERS.Saw)(ctx, o, r, lw, time);
+}
+
+// ---------- Jump boost ----------
+
+function drawBoost(ctx, x, y, w, lw, time) {
+  const pad = w * 0.1;
+  const bob = Math.sin(time * 6) * w * 0.04;
+  ctx.shadowColor = '#ffd23f';
+  ctx.shadowBlur = 12 + Math.sin(time * 6) * 4;
+  const g = ctx.createLinearGradient(0, y, 0, y + w);
+  g.addColorStop(0, '#fff3a0');
+  g.addColorStop(1, '#ff9f1a');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(x + pad, y + pad, w - pad * 2, w - pad * 2, w * 0.18);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#7a3d00';
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
+  // Up chevrons
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = Math.max(2, w * 0.09);
+  ctx.lineCap = 'round';
+  for (const k of [0.38, 0.62]) {
+    const cy = y + w * k + bob;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.3, cy + w * 0.1);
+    ctx.lineTo(x + w * 0.5, cy - w * 0.1);
+    ctx.lineTo(x + w * 0.7, cy + w * 0.1);
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
 }
